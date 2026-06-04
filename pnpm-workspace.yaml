@@ -1,6 +1,9 @@
 packages: []
 
 allowBuilds:
+  '@google/genai': set this to true or false
+  protobufjs: set this to true or false
   sharp: true
   unrs-resolver: true
-  msw: false
+
+strictDepBuilds: false
