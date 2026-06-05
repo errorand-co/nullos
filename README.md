@@ -58,7 +58,7 @@ Run [supabase/schema.sql](supabase/schema.sql) once in the Supabase SQL editor. 
 
 The dashboard requires a Supabase Auth session. Unauthenticated visitors are redirected to `/auth/login`, and dashboard API routes return `401` until a user signs in.
 
-Enable email/password signups in Supabase Auth, then add these redirect URLs in the Supabase dashboard:
+Create user accounts manually in Supabase Auth. The app only exposes a sign-in form, not public registration. Add these redirect URLs in the Supabase dashboard:
 
 ```txt
 http://localhost:3000/auth/callback
