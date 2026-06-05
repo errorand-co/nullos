@@ -44,8 +44,9 @@ export async function listSearchConsoleSites() {
 }
 
 export async function fetchSearchConsoleSite(siteUrl: string): Promise<SandboxSite> {
-  const dateRange = getLastNDaysRange(28)
-  const previousRange = getPreviousNDaysRange(28)
+  const importWindow = await findImportWindow(siteUrl)
+  const dateRange = getLastNDaysRange(importWindow)
+  const previousRange = getPreviousNDaysRange(importWindow)
   const [currentTotals, previousTotals, queries, pages, countries, devices, trends] = await Promise.all([
     fetchRows(siteUrl, dateRange, []),
     fetchRows(siteUrl, previousRange, []),
@@ -53,7 +54,7 @@ export async function fetchSearchConsoleSite(siteUrl: string): Promise<SandboxSi
     fetchRows(siteUrl, dateRange, ["page"], 20),
     fetchRows(siteUrl, dateRange, ["country"], 20),
     fetchRows(siteUrl, dateRange, ["device"], 10),
-    fetchRows(siteUrl, dateRange, ["date"], 28),
+    fetchRows(siteUrl, dateRange, ["date"], importWindow),
   ])
 
   const current = aggregateRows(currentTotals)
@@ -65,7 +66,7 @@ export async function fetchSearchConsoleSite(siteUrl: string): Promise<SandboxSi
     id: slugify(hostname),
     name: hostname,
     url: siteUrl,
-    sector: "Google Search Console Property",
+    sector: `Google Search Console Property (${importWindow} days)`,
     audience: "Organic Search Users",
     metrics,
     queries: withFallback(queries.map(toQuery), []),
@@ -81,6 +82,15 @@ export async function fetchSearchConsoleSite(siteUrl: string): Promise<SandboxSi
       { clicks: 0, ctr: 0, date: "D 28", impressions: 0, position: 0 },
     ]),
   }
+}
+
+async function findImportWindow(siteUrl: string) {
+  for (const days of [28, 90, 180]) {
+    const rows = await fetchRows(siteUrl, getLastNDaysRange(days), [], 1)
+    if (rows.length) return days
+  }
+
+  return 28
 }
 
 function withFallback<T>(items: T[], fallback: T[]) {
