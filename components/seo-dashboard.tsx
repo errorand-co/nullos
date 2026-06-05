@@ -152,7 +152,7 @@ const initialTrackedKeywords: Record<string, TrackedKeyword[]> = {
   ],
 }
 
-export function SeoDashboard() {
+export function SeoDashboard({ userEmail }: { userEmail: string }) {
   const [chartReady, setChartReady] = useState(false)
   const [theme, setTheme] = useState<"dark" | "light">("dark")
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -591,8 +591,13 @@ export function SeoDashboard() {
                 </Button>
               </div>
               <div className="border-t p-4">
-                <div className="text-xs font-medium">Alex Rivers</div>
-                <div className="truncate text-[0.6875rem] text-muted-foreground">boonpipop.bome@gmail.com</div>
+                <div className="text-xs font-medium">User</div>
+                <div className="truncate text-[0.6875rem] text-muted-foreground">{userEmail}</div>
+                <form action="/auth/logout" method="post" className="mt-3">
+                  <Button className="w-full justify-start" variant="outline" size="sm" type="submit">
+                    Sign Out
+                  </Button>
+                </form>
               </div>
             </div>
           </aside>

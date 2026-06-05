@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai"
 import { NextResponse } from "next/server"
 
+import { requireAuthenticatedUser } from "@/lib/auth-guard"
 import { getOfflineBrief } from "@/lib/seo-ai"
 
 type BriefRequest = {
@@ -10,6 +11,9 @@ type BriefRequest = {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   const body = (await request.json()) as BriefRequest
 
   if (!process.env.GEMINI_API_KEY) {

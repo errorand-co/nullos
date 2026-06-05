@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { requireAuthenticatedUser } from "@/lib/auth-guard"
 import { sandboxSites } from "@/lib/seo-data"
 import type { SandboxSite } from "@/lib/seo-types"
 import { listWebsites, upsertWebsite } from "@/lib/website-store"
@@ -18,6 +19,9 @@ function getErrorMessage(error: unknown) {
 }
 
 export async function GET() {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   try {
     const result = await listWebsites()
     return NextResponse.json(result)
@@ -32,6 +36,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   const body = (await request.json()) as WebsiteRequest
   const name = body.name?.trim()
   const url = body.url?.trim()

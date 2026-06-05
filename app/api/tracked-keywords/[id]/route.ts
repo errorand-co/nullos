@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { requireAuthenticatedUser } from "@/lib/auth-guard"
 import { deleteTrackedKeyword } from "@/lib/tracked-keyword-store"
 
 type RouteContext = {
@@ -9,6 +10,9 @@ type RouteContext = {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   const { id } = await context.params
 
   try {

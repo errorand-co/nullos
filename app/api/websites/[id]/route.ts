@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { requireAuthenticatedUser } from "@/lib/auth-guard"
 import { deleteWebsite } from "@/lib/website-store"
 
 type RouteContext = {
@@ -17,6 +18,9 @@ function getErrorMessage(error: unknown) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   const { id } = await context.params
   try {
     await deleteWebsite(id)

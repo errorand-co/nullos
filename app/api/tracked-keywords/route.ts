@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { requireAuthenticatedUser } from "@/lib/auth-guard"
 import { createTrackedKeyword, listTrackedKeywords } from "@/lib/tracked-keyword-store"
 import type { TrackedKeyword } from "@/lib/seo-types"
 
@@ -12,6 +13,9 @@ type CreateRequest = {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   const url = new URL(request.url)
   const siteId = url.searchParams.get("siteId") || undefined
 
@@ -24,6 +28,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   const body = (await request.json()) as CreateRequest
 
   if (!body.query?.trim() || !body.siteId) {

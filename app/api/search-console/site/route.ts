@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { requireAuthenticatedUser } from "@/lib/auth-guard"
 import { fetchSearchConsoleSite, hasSearchConsoleCredentials } from "@/lib/search-console"
 import { upsertWebsite } from "@/lib/website-store"
 
@@ -8,6 +9,9 @@ type SiteRequest = {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   try {
     if (!hasSearchConsoleCredentials()) {
       return NextResponse.json(

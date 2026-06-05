@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai"
 import { NextResponse } from "next/server"
 
+import { requireAuthenticatedUser } from "@/lib/auth-guard"
 import { getOfflineAudit } from "@/lib/seo-ai"
 import type { GscMetrics, GscPage, GscQuery } from "@/lib/seo-types"
 
@@ -12,6 +13,9 @@ type AuditRequest = {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAuthenticatedUser()
+  if (auth.error) return auth.error
+
   const body = (await request.json()) as AuditRequest
 
   if (!process.env.GEMINI_API_KEY) {
