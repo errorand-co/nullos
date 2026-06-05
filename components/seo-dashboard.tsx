@@ -156,8 +156,9 @@ export function SeoDashboard({ userEmail }: { userEmail: string }) {
   const [chartReady, setChartReady] = useState(false)
   const [theme, setTheme] = useState<"dark" | "light">("dark")
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [sites, setSites] = useState<SandboxSite[]>(sandboxSites)
+  const [sites, setSites] = useState<SandboxSite[]>([])
   const [activeSite, setActiveSite] = useState<SandboxSite>(sandboxSites[0])
+  const [websitesLoading, setWebsitesLoading] = useState(true)
   const [manageWebsitesOpen, setManageWebsitesOpen] = useState(false)
   const [websiteName, setWebsiteName] = useState("")
   const [websiteUrl, setWebsiteUrl] = useState("")
@@ -221,8 +222,12 @@ export function SeoDashboard({ userEmail }: { userEmail: string }) {
         )
       } catch {
         if (!ignore) {
+          setSites(sandboxSites)
+          setActiveSite(sandboxSites[0])
           setWebsiteStoreMessage("Could not load saved websites. Using local sandbox data.")
         }
+      } finally {
+        if (!ignore) setWebsitesLoading(false)
       }
     }
 
@@ -234,6 +239,8 @@ export function SeoDashboard({ userEmail }: { userEmail: string }) {
   }, [])
 
   useEffect(() => {
+    if (websitesLoading) return
+
     let ignore = false
 
     async function loadTrackedKeywords() {
@@ -281,7 +288,7 @@ export function SeoDashboard({ userEmail }: { userEmail: string }) {
     return () => {
       ignore = true
     }
-  }, [activeSite.id])
+  }, [activeSite, websitesLoading])
 
   const trends = buildRangeTrends(activeSite, dateRange)
   const metrics = buildRangeMetrics(activeSite, trends)
@@ -531,6 +538,10 @@ export function SeoDashboard({ userEmail }: { userEmail: string }) {
     navigator.clipboard.writeText(text)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1500)
+  }
+
+  if (websitesLoading) {
+    return <DashboardLoadingShell theme={theme} />
   }
 
   return (
@@ -875,6 +886,45 @@ function Header({
           Export Data
         </Button>
       </div>
+    </div>
+  )
+}
+
+function DashboardLoadingShell({ theme }: { theme: "dark" | "light" }) {
+  return (
+    <div className={theme === "dark" ? "dark" : ""}>
+      <main className="h-svh overflow-hidden bg-background text-foreground">
+        <div className="flex h-svh">
+          <aside className="hidden h-svh w-64 shrink-0 border-r bg-card p-4 md:block">
+            <div className="mb-6 flex items-center gap-2">
+              <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <Zap className="size-4" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold">SEO Insight</div>
+                <div className="text-xs text-muted-foreground">GSC command center</div>
+              </div>
+            </div>
+            <div className="grid gap-3">
+              <div className="h-3 w-24 rounded-sm bg-muted" />
+              <div className="h-9 rounded-md bg-muted" />
+              <div className="mt-5 h-9 rounded-md bg-muted" />
+              <div className="h-9 rounded-md bg-muted/70" />
+              <div className="h-9 rounded-md bg-muted/70" />
+            </div>
+          </aside>
+          <section className="min-w-0 flex-1 p-4 sm:p-6">
+            <div className="mb-4 h-12 rounded-md border bg-card" />
+            <div className="grid gap-4 sm:grid-cols-4">
+              {[0, 1, 2, 3].map((item) => (
+                <div key={item} className="h-24 rounded-md border bg-card" />
+              ))}
+            </div>
+            <div className="mt-4 h-72 rounded-md border bg-card" />
+            <div className="mt-4 h-72 rounded-md border bg-card" />
+          </section>
+        </div>
+      </main>
     </div>
   )
 }
