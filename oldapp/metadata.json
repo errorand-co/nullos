@@ -1,0 +1,6 @@
+{
+  "name": "Google Search Console SEO Dashboard",
+  "description": "A dark-mode-supported, highly polished SEO overview and content keyword strategy dashboard using Google Search Console data with server-side Gemini AI audits.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
