@@ -54,15 +54,16 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 Run [supabase/schema.sql](supabase/schema.sql) once in the Supabase SQL editor. The dashboard uses the server-only service role key for website management today, while RLS is enabled so auth and workspace roles can be added next.
 
-## Supabase Auth
+## Auth (fixed accounts)
 
-The dashboard requires a Supabase Auth session. Unauthenticated visitors are redirected to `/auth/login`, and dashboard API routes return `401` until a user signs in.
+The dashboard is protected by fixed credentials instead of Supabase Auth. Configure accounts as a JSON array in `.env.local` (and on Vercel):
 
-Create user accounts manually in Supabase Auth. The app only exposes a sign-in form, not public registration. Add these redirect URLs in the Supabase dashboard:
-
-```txt
-http://localhost:3000/auth/callback
-https://your-cloudflare-tunnel-domain/auth/callback
+```env
+AUTH_ACCOUNTS='[{"username":"alice","password":"alice-pass"},{"username":"bob","password":"bob-pass"}]'
 ```
 
-After signing in, the sidebar shows the active user email and a sign out button.
+For a single account you can alternatively set `AUTH_USERNAME` and `AUTH_PASSWORD`; it's used as a fallback when `AUTH_ACCOUNTS` is unset.
+
+The session is an HMAC-signed cookie valid for 30 days. Optionally set `AUTH_SECRET` to use a dedicated signing key; otherwise one is derived from the configured accounts. Unauthenticated visitors are redirected to `/auth/login`, and dashboard API routes return `401` until signed in.
+
+After signing in, the sidebar shows the active username and a sign out button.

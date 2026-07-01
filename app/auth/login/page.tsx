@@ -1,13 +1,10 @@
 import { redirect } from "next/navigation"
 
 import { AuthForm } from "@/components/auth-form"
-import { createSupabaseAuthServerClient } from "@/lib/supabase-auth-server"
+import { getCurrentUser } from "@/lib/auth"
 
 export default async function LoginPage() {
-  const supabase = await createSupabaseAuthServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (user) {
     redirect("/")

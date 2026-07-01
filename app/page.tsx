@@ -1,17 +1,14 @@
 import { redirect } from "next/navigation"
 
 import { SeoDashboard } from "@/components/seo-dashboard"
-import { createSupabaseAuthServerClient } from "@/lib/supabase-auth-server"
+import { getCurrentUser } from "@/lib/auth"
 
 export default async function Page() {
-  const supabase = await createSupabaseAuthServerClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (!user) {
     redirect("/auth/login")
   }
 
-  return <SeoDashboard userEmail={user.email || "Signed in"} />
+  return <SeoDashboard userEmail={user.username} />
 }

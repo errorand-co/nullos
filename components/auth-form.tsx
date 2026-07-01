@@ -1,14 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { ArrowRight, LogIn, Mail, Zap } from "lucide-react"
+import { useState } from "react"
+import { ArrowRight, LogIn, Lock, Zap } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { createSupabaseBrowserClient } from "@/lib/supabase-client"
 
 export function AuthForm() {
-  const supabase = useMemo(() => createSupabaseBrowserClient(), [])
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
@@ -18,15 +16,25 @@ export function AuthForm() {
     setLoading(true)
     setMessage("")
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      })
 
-    if (error) {
-      setMessage(error.message)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Sign in failed." }))
+        setMessage(data.error || "Sign in failed.")
+        setLoading(false)
+        return
+      }
+
+      window.location.href = "/"
+    } catch {
+      setMessage("Network error. Please try again.")
       setLoading(false)
-      return
     }
-
-    window.location.href = "/"
   }
 
   return (
@@ -44,15 +52,15 @@ export function AuthForm() {
 
         <form onSubmit={submitAuth} className="grid gap-3">
           <label className="grid gap-1 text-xs font-medium">
-            Email
+            Username
             <div className="flex h-9 items-center gap-2 rounded-md border bg-background px-3">
-              <Mail className="size-4 text-muted-foreground" />
+              <Lock className="size-4 text-muted-foreground" />
               <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                type="text"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
                 required
-                autoComplete="email"
+                autoComplete="username"
                 className="min-w-0 flex-1 bg-transparent text-xs outline-none"
               />
             </div>
@@ -65,7 +73,7 @@ export function AuthForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={6}
+              minLength={4}
               autoComplete="current-password"
               className="h-9 rounded-md border bg-background px-3 text-xs outline-none"
             />

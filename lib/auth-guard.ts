@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server"
 
-import { createSupabaseAuthServerClient } from "@/lib/supabase-auth-server"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function requireAuthenticatedUser() {
-  const supabase = await createSupabaseAuthServerClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
-  if (error || !user) {
+  if (!user) {
     return {
       error: NextResponse.json({ error: "Authentication required." }, { status: 401 }),
-      user: null,
+      user: null as null | { username: string },
     }
   }
 
