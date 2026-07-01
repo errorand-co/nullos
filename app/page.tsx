@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation"
 
-import { SeoDashboard } from "@/components/seo-dashboard"
 import { getCurrentUser } from "@/lib/auth"
 
-export default async function Page() {
+export default async function Home() {
   const user = await getCurrentUser()
 
   if (!user) {
     redirect("/auth/login")
   }
 
-  return <SeoDashboard userEmail={user.username} />
+  // Redirect to the first dashboard route.
+  // After the dashboard pages exist, this goes to /dashboard.
+  redirect("/dashboard")
 }

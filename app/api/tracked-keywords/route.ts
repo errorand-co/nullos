@@ -1,75 +1,60 @@
 import { NextResponse } from "next/server"
 
-import { requireAuthenticatedUser } from "@/lib/auth-guard"
-import { createTrackedKeyword, listTrackedKeywords } from "@/lib/tracked-keyword-store"
+import { requireUser } from "@/lib/auth"
+import { listTrackedKeywords, createTrackedKeyword } from "@/lib/keyword-store"
 import type { TrackedKeyword } from "@/lib/seo-types"
 
-type CreateRequest = {
-  difficulty: TrackedKeyword["difficulty"]
-  query: string
-  siteId: string
-  targetPosition: number
-  volume: number
-}
-
 export async function GET(request: Request) {
-  const auth = await requireAuthenticatedUser()
+  const auth = await requireUser()
   if (auth.error) return auth.error
 
   const url = new URL(request.url)
   const siteId = url.searchParams.get("siteId") || undefined
 
   try {
-    const result = await listTrackedKeywords(siteId)
+    const result = await listTrackedKeywords(auth.user!, siteId)
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuthenticatedUser()
+  const auth = await requireUser()
   if (auth.error) return auth.error
 
-  const body = (await request.json()) as CreateRequest
+  const body = (await request.json()) as {
+    query?: string
+    siteId?: string
+    targetPosition?: number
+    volume?: number
+    difficulty?: TrackedKeyword["difficulty"]
+  }
 
-  if (!body.query?.trim() || !body.siteId) {
+  const query = body.query?.trim()
+  const siteId = body.siteId?.trim()
+
+  if (!query || !siteId) {
     return NextResponse.json({ error: "query and siteId are required." }, { status: 400 })
   }
 
-  const currentPosition = Number((1.5 + Math.random() * 20).toFixed(1))
-  const previousPosition = Number((currentPosition + Math.random() * 4 - 2).toFixed(1))
-  const status =
-    currentPosition <= body.targetPosition
-      ? "On Track"
-      : currentPosition > body.targetPosition + 10
-        ? "Critical"
-        : "Needs Attention"
   const keyword: TrackedKeyword = {
-    currentPosition,
+    currentPosition: 0,
     dateAdded: new Date().toISOString().slice(0, 10),
-    difficulty: body.difficulty,
-    id: `${body.siteId}-${Date.now()}`,
-    previousPosition,
-    query: body.query.trim(),
-    siteId: body.siteId,
-    status,
-    targetPosition: body.targetPosition,
-    volume: body.volume,
+    difficulty: body.difficulty || "Medium",
+    id: `kw-${Date.now()}`,
+    previousPosition: 0,
+    query,
+    siteId,
+    status: "On Track",
+    targetPosition: body.targetPosition || 3,
+    volume: body.volume || 0,
   }
 
   try {
-    const savedKeyword = await createTrackedKeyword(keyword)
-    return NextResponse.json({ keyword: savedKeyword })
+    const saved = await createTrackedKeyword(keyword, auth.user!.id)
+    return NextResponse.json({ keyword: saved })
   } catch (error) {
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
   }
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message
-  if (typeof error === "object" && error && "message" in error) {
-    return String((error as { message?: unknown }).message)
-  }
-  return "Unknown error."
 }

@@ -1,12 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRight, LogIn, Lock, Zap } from "lucide-react"
+import { ArrowRight, LogIn, Mail, Zap } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { isSupabaseConfigured } from "@/lib/env"
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser"
 
 export function AuthForm() {
-  const [username, setUsername] = useState("")
+  const configured = isSupabaseConfigured()
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
@@ -16,25 +19,16 @@ export function AuthForm() {
     setLoading(true)
     setMessage("")
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      })
+    const supabase = createSupabaseBrowserClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: "Sign in failed." }))
-        setMessage(data.error || "Sign in failed.")
-        setLoading(false)
-        return
-      }
-
-      window.location.href = "/"
-    } catch {
-      setMessage("Network error. Please try again.")
+    if (error) {
+      setMessage(error.message)
       setLoading(false)
+      return
     }
+
+    window.location.href = "/"
   }
 
   return (
@@ -50,43 +44,54 @@ export function AuthForm() {
           </div>
         </div>
 
-        <form onSubmit={submitAuth} className="grid gap-3">
-          <label className="grid gap-1 text-xs font-medium">
-            Username
-            <div className="flex h-9 items-center gap-2 rounded-md border bg-background px-3">
-              <Lock className="size-4 text-muted-foreground" />
+        {!configured ? (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+            Supabase is not configured. Set <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in your environment to enable login.
+          </div>
+        ) : (
+          <form onSubmit={submitAuth} className="grid gap-3">
+            <label className="grid gap-1 text-xs font-medium">
+              Email
+              <div className="flex h-9 items-center gap-2 rounded-md border bg-background px-3">
+                <Mail className="size-4 text-muted-foreground" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  autoComplete="email"
+                  className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+                />
+              </div>
+            </label>
+
+            <label className="grid gap-1 text-xs font-medium">
+              Password
               <input
-                type="text"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 required
-                autoComplete="username"
-                className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+                minLength={6}
+                autoComplete="current-password"
+                className="h-9 rounded-md border bg-background px-3 text-xs outline-none"
               />
-            </div>
-          </label>
+            </label>
 
-          <label className="grid gap-1 text-xs font-medium">
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              minLength={4}
-              autoComplete="current-password"
-              className="h-9 rounded-md border bg-background px-3 text-xs outline-none"
-            />
-          </label>
+            {message && (
+              <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+                {message}
+              </div>
+            )}
 
-          {message && <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">{message}</div>}
-
-          <Button type="submit" className="w-full" disabled={loading}>
-            <LogIn />
-            {loading ? "Please wait" : "Sign In"}
-            <ArrowRight />
-          </Button>
-        </form>
+            <Button type="submit" className="w-full" disabled={loading}>
+              <LogIn />
+              {loading ? "Please wait" : "Sign In"}
+              <ArrowRight />
+            </Button>
+          </form>
+        )}
       </section>
     </main>
   )

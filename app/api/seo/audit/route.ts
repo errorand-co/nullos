@@ -1,7 +1,8 @@
 import { GoogleGenAI } from "@google/genai"
 import { NextResponse } from "next/server"
 
-import { requireAuthenticatedUser } from "@/lib/auth-guard"
+import { requireUser } from "@/lib/auth"
+import { env } from "@/lib/env"
 import { getOfflineAudit } from "@/lib/seo-ai"
 import type { GscMetrics, GscPage, GscQuery } from "@/lib/seo-types"
 
@@ -13,16 +14,16 @@ type AuditRequest = {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuthenticatedUser()
+  const auth = await requireUser()
   if (auth.error) return auth.error
 
   const body = (await request.json()) as AuditRequest
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!env.GEMINI_API_KEY) {
     return NextResponse.json({ result: getOfflineAudit(body.siteName, body.metrics), source: "offline" })
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+  const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY })
   const response = await ai.models.generateContent({
     model: "gemini-3.5-flash",
     contents: `Analyze this Google Search Console SEO snapshot for "${body.siteName}".

@@ -1,69 +1,78 @@
-# Next.js template
+# SEO Insight
 
-This is a Next.js template with shadcn/ui.
+An SEO analytics dashboard built with Next.js 16, Supabase, and shadcn/ui.
 
-## Adding components
+## Features
 
-To add components to your app, run the following command:
+- **GSC command center** — visualize Google Search Console data per property: queries, pages, countries, devices, trend charts
+- **Keyword tracking** — CRUD a keyword watchlist per site with target position, volume, difficulty
+- **AI insights** — SEO audit, keyword strategy, and content briefs via Gemini (with offline fallbacks)
+- **Search Console import** — import real GSC data via Google OAuth
+- **Per-user data isolation** — Supabase RLS ensures each user only sees their own websites and keywords
+
+## Architecture
+
+- **Auth**: Supabase Auth via `@supabase/ssr` (cookie-based sessions). A `proxy.ts` gate (Next.js 16's replacement for `middleware.ts`) refreshes sessions and redirects unauthenticated users.
+- **Data fetching**: Server Components fetch data server-side and pass as props. Client components handle mutations and on-demand actions only.
+- **Database**: Supabase with per-user RLS policies (`auth.uid() = user_id`). No service-role key needed — all queries go through the user's session JWT.
+- **Demo mode**: When Supabase isn't configured, the dashboard shows sandbox data with a labeled banner. No crashes on misconfiguration.
+
+## Setup
+
+### 1. Environment variables
+
+Copy `.env.example` to `.env.local` and fill in:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Optional:
+- `GEMINI_API_KEY` — enables real AI insights (falls back to offline templates)
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` — enables GSC import
+
+### 2. Database schema
+
+Run [supabase/schema.sql](supabase/schema.sql) in the Supabase SQL editor. This creates the `websites` and `tracked_keywords` tables with per-user RLS policies.
+
+### 3. Supabase Auth configuration
+
+In the Supabase dashboard, add these redirect URLs under Auth → URL Configuration:
+
+```
+http://localhost:3000/auth/callback
+https://your-vercel-domain/auth/callback
+```
+
+Create user accounts manually in Supabase Auth (no public registration).
+
+### 4. Install and run
 
 ```bash
-npx shadcn@latest add button
+pnpm install
+pnpm dev
 ```
 
-This will place the ui components in the `components` directory.
+## Project structure
 
-## Using components
-
-To use the components in your app, import them as follows:
-
-```tsx
-import { Button } from "@/components/ui/button";
+```
+proxy.ts                    Auth gate (session refresh + redirect)
+lib/supabase/               Supabase clients (server, proxy, browser)
+lib/auth.ts                 getCurrentUser() / requireUser() helpers
+lib/website-store.ts        Website CRUD with RLS
+lib/keyword-store.ts        Keyword CRUD with RLS
+lib/search-console.ts       GSC API integration
+lib/seo-ai.ts              Gemini insights + offline fallbacks
+app/dashboard/[siteId]/    Dashboard routes (RSC — server-side data fetching)
+app/api/                    API routes (client mutations + on-demand AI)
+components/                 Decomposed UI (one component per tab)
 ```
 
-## Google Search Console data
+## Scripts
 
-The dashboard falls back to local sandbox data unless Google OAuth credentials are configured.
-
-Set these values in `.env.local` to enable real Search Console imports:
-
-```env
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REFRESH_TOKEN=
-```
-
-Create a Google OAuth web client with this redirect URI:
-
-```txt
-http://localhost:3000/api/auth/google/callback
-```
-
-After setting `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, open **Manage Websites** and click **Connect Google**. The callback page will show the `GOOGLE_REFRESH_TOKEN` value to add to `.env.local`.
-
-Once configured, open **Manage Websites** and click **Load GSC Sites** to list verified Search Console properties. Importing a property fetches 28-day GSC query, page, country, device, and trend data through the server API.
-
-## Supabase persistence
-
-Website and keyword tracker records are persisted in Supabase when these values exist in `.env.local`:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-```
-
-Run [supabase/schema.sql](supabase/schema.sql) once in the Supabase SQL editor. The dashboard uses the server-only service role key for website management today, while RLS is enabled so auth and workspace roles can be added next.
-
-## Auth (fixed accounts)
-
-The dashboard is protected by fixed credentials instead of Supabase Auth. Configure accounts as a JSON array in `.env.local` (and on Vercel):
-
-```env
-AUTH_ACCOUNTS='[{"username":"alice","password":"alice-pass"},{"username":"bob","password":"bob-pass"}]'
-```
-
-For a single account you can alternatively set `AUTH_USERNAME` and `AUTH_PASSWORD`; it's used as a fallback when `AUTH_ACCOUNTS` is unset.
-
-The session is an HMAC-signed cookie valid for 30 days. Optionally set `AUTH_SECRET` to use a dedicated signing key; otherwise one is derived from the configured accounts. Unauthenticated visitors are redirected to `/auth/login`, and dashboard API routes return `401` until signed in.
-
-After signing in, the sidebar shows the active username and a sign out button.
+- `pnpm dev` — development server
+- `pnpm build` — production build (Turbopack)
+- `pnpm start` — production server
+- `pnpm typecheck` — TypeScript check
+- `pnpm lint` — ESLint

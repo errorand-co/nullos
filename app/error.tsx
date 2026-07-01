@@ -16,7 +16,7 @@ export default function Error({
   return (
     <main className="flex min-h-svh items-center justify-center bg-background p-4 text-foreground">
       <section className="grid w-full max-w-sm gap-4 rounded-md border bg-card p-6">
-        <h1 className="text-base font-semibold">This page couldn’t load</h1>
+        <h1 className="text-base font-semibold">This page couldn&rsquo;t load</h1>
         <p className="text-xs text-muted-foreground">
           {error.message || "An unexpected error occurred while rendering this page."}
         </p>

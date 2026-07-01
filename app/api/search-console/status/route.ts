@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server"
 
-import { requireAuthenticatedUser } from "@/lib/auth-guard"
+import { requireUser } from "@/lib/auth"
 import { hasSearchConsoleCredentials } from "@/lib/search-console"
 
 export async function GET() {
-  const auth = await requireAuthenticatedUser()
+  const auth = await requireUser()
   if (auth.error) return auth.error
 
-  return NextResponse.json({
-    configured: hasSearchConsoleCredentials(),
-  })
+  return NextResponse.json({ configured: hasSearchConsoleCredentials() })
 }

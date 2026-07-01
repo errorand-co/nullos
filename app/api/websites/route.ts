@@ -1,45 +1,27 @@
 import { NextResponse } from "next/server"
 
-import { requireAuthenticatedUser } from "@/lib/auth-guard"
+import { requireUser } from "@/lib/auth"
 import { sandboxSites } from "@/lib/seo-data"
 import type { SandboxSite } from "@/lib/seo-types"
 import { listWebsites, upsertWebsite } from "@/lib/website-store"
 
-type WebsiteRequest = {
-  name?: string
-  url?: string
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message
-  if (typeof error === "object" && error && "message" in error) {
-    return String((error as { message?: unknown }).message)
-  }
-  return "Unknown error."
-}
-
 export async function GET() {
-  const auth = await requireAuthenticatedUser()
+  const auth = await requireUser()
   if (auth.error) return auth.error
 
   try {
-    const result = await listWebsites()
+    const result = await listWebsites(auth.user!)
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: getErrorMessage(error),
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuthenticatedUser()
+  const auth = await requireUser()
   if (auth.error) return auth.error
 
-  const body = (await request.json()) as WebsiteRequest
+  const body = (await request.json()) as { name?: string; url?: string }
   const name = body.name?.trim()
   const url = body.url?.trim()
 
@@ -58,15 +40,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const savedSite = await upsertWebsite(site, "manual")
-
-    return NextResponse.json({ site: savedSite })
+    const saved = await upsertWebsite(site, auth.user!.id)
+    return NextResponse.json({ site: saved })
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: getErrorMessage(error),
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
   }
 }
