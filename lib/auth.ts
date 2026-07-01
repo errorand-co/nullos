@@ -61,12 +61,11 @@ function sign(payload: string): string {
 }
 
 /** Build the `username:expiry` token + its signature. */
-function createSessionToken(username: string): string {
+export function createSessionToken(username: string): string {
   const expires = Math.floor(Date.now() / 1000) + SESSION_MAX_AGE
   const payload = `${username}:${expires}`
   return `${payload}.${sign(payload)}`
 }
-
 export function verifySessionToken(token: string | undefined): { username: string } | null {
   if (!token) return null
   const lastDot = token.lastIndexOf(".")
@@ -118,13 +117,20 @@ export async function getCurrentUser(): Promise<{ username: string } | null> {
   return verifySessionToken(token)
 }
 
-/** Read & clear the session cookie for a logout response. */
-export async function clearSessionCookie(): Promise<string> {
-  return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`
+/** Set the signed session cookie via the Next.js cookies() API. */
+export async function setSessionCookie(username: string): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.set(SESSION_COOKIE, createSessionToken(username), {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+  })
 }
 
-/** Build the Set-Cookie header value for a fresh login session. */
-export function buildSessionCookie(username: string): string {
-  const token = createSessionToken(username)
-  return `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${SESSION_MAX_AGE}; HttpOnly; Secure; SameSite=Lax`
+/** Clear the session cookie via the Next.js cookies() API. */
+export async function clearSessionCookie(): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.delete(SESSION_COOKIE)
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { buildSessionCookie, checkCredentials } from "@/lib/auth"
+import { checkCredentials, setSessionCookie } from "@/lib/auth"
 
 export async function POST(request: Request) {
   let body: { username?: string; password?: string }
@@ -17,7 +17,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid username or password." }, { status: 401 })
   }
 
-  const res = NextResponse.json({ ok: true })
-  res.headers.set("Set-Cookie", buildSessionCookie(username))
-  return res
+  await setSessionCookie(username)
+  return NextResponse.json({ ok: true })
 }
