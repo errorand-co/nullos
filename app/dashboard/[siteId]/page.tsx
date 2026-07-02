@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation"
 
-import { MetricCards } from "@/components/metric-cards"
-import { TrendChart } from "@/components/trend-chart"
+import { OverviewView } from "@/components/overview-view"
 import { listGscSites } from "@/lib/gsc-store"
 import { getCurrentUser } from "@/lib/auth"
-import type { GscMetrics } from "@/lib/seo-types"
 
 export default async function SiteOverviewPage({
   params,
@@ -20,15 +18,5 @@ export default async function SiteOverviewPage({
 
   if (!site) notFound()
 
-  const metrics: GscMetrics = site.metrics
-
-  return (
-    <div className="grid gap-4">
-      <MetricCards metrics={metrics} />
-      <div className="rounded-md border bg-card p-4">
-        <h2 className="mb-3 text-sm font-semibold">Performance Trend</h2>
-        <TrendChart trends={site.trends} />
-      </div>
-    </div>
-  )
+  return <OverviewView metrics={site.metrics} trends={site.trends} />
 }

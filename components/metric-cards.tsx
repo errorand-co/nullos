@@ -47,7 +47,11 @@ export function MetricCards({ metrics }: { metrics: GscMetrics }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       <MetricCard label="Clicks" value={formatNumber(metrics.clicks)} change={metrics.clicksChange} />
-      <MetricCard label="Impressions" value={formatNumber(metrics.impressions)} change={metrics.impressionsChange} />
+      <MetricCard
+        label="Impressions"
+        value={formatNumber(metrics.impressions)}
+        change={metrics.impressionsChange}
+      />
       <MetricCard label="CTR" value={`${metrics.ctr.toFixed(2)}%`} change={metrics.ctrChange} />
       <MetricCard
         label="Avg Position"

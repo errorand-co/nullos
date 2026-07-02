@@ -3,13 +3,16 @@
 import { useState } from "react"
 import {
   BarChart3,
+  Calendar,
+  ChevronDown,
   FileText,
   Globe,
   ListChecks,
   LogOut,
+  Moon,
   Search,
+  Sun,
   Target,
-  Wallet,
   Zap,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
@@ -32,6 +35,27 @@ const navSections = [
   },
 ]
 
+export const dateRangeOptions = [
+  { value: "7d", label: "Last 7 days" },
+  { value: "28d", label: "Last 28 days" },
+  { value: "3m", label: "Last 3 months" },
+  { value: "6m", label: "Last 6 months" },
+  { value: "12m", label: "Last 12 months" },
+  { value: "16m", label: "All time" },
+]
+
+export const aggregateOptions = [
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+] as const
+
+export const comparisonOptions = [
+  { value: "previous", label: "vs Previous period" },
+  { value: "year", label: "vs Same period last year" },
+  { value: "none", label: "No comparison" },
+] as const
+
 export function DashboardShell({
   userEmail,
   sites,
@@ -46,6 +70,7 @@ export function DashboardShell({
   children: React.ReactNode
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [theme, setTheme] = useState<"dark" | "light">("dark")
   const pathname = usePathname()
 
   const pathParts = pathname.split("/").filter(Boolean)
@@ -53,14 +78,13 @@ export function DashboardShell({
   const activeSite = sites.find((s) => s.id === activeSiteId) || sites[0]
   const siteBase = `/dashboard/${activeSiteId}`
 
-  // Determine the current page label for breadcrumb
   const activeNavItem = navSections[0].items.find(
     (item) => pathname === `${siteBase}${item.segment}` || (item.segment === "" && pathname === siteBase),
   )
   const pageLabel = activeNavItem?.label || "Overview"
 
   return (
-    <div className="dark">
+    <div className={theme === "dark" ? "dark" : ""}>
       <main className="h-svh overflow-hidden bg-background text-foreground">
         <div className="flex h-svh flex-col overflow-hidden md:flex-row">
           {/* Sidebar */}
@@ -70,7 +94,6 @@ export function DashboardShell({
               mobileOpen ? "translate-x-0" : "-translate-x-full",
             )}
           >
-            {/* Logo */}
             <div className="flex h-14 items-center gap-2 border-b px-4">
               <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Zap className="size-3.5" />
@@ -78,7 +101,6 @@ export function DashboardShell({
               <span className="text-sm font-semibold">SEO Insight</span>
             </div>
 
-            {/* Site selector */}
             <div className="border-b p-4">
               <div className="mb-2 flex items-center gap-2">
                 <Globe className="size-3.5 text-muted-foreground" />
@@ -105,7 +127,6 @@ export function DashboardShell({
               </div>
             </div>
 
-            {/* Nav */}
             <nav className="flex-1 overflow-y-auto p-3">
               {navSections.map((section) => (
                 <div key={section.label} className="mb-4">
@@ -139,7 +160,6 @@ export function DashboardShell({
               ))}
             </nav>
 
-            {/* User / Sign out */}
             <div className="border-t p-3">
               <div className="mb-2 px-2 text-[0.6875rem] font-medium uppercase text-muted-foreground">
                 Account
@@ -154,7 +174,6 @@ export function DashboardShell({
             </div>
           </aside>
 
-          {/* Mobile overlay */}
           {mobileOpen && (
             <div
               className="fixed inset-0 z-40 bg-background/80 md:hidden"
@@ -162,43 +181,75 @@ export function DashboardShell({
             />
           )}
 
-          {/* Main area */}
           <div className="flex h-svh flex-1 flex-col overflow-hidden">
             {/* Top bar */}
             <div className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6">
-              {/* Breadcrumb */}
               <div className="flex items-center gap-2 text-sm">
                 <span className="font-medium text-foreground">{activeSite?.name || "—"}</span>
                 <span className="text-muted-foreground">/</span>
                 <span className="text-foreground">{pageLabel}</span>
               </div>
 
-              {/* Search */}
-              <div className="hidden md:flex flex-1 max-w-md mx-6 items-center gap-2 h-9 rounded-md border bg-background px-3">
-                <Search className="size-3.5 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search queries, pages..."
-                  className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-                />
-              </div>
-              {/* Right side */}
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm">
-                  <Wallet />
-                  <span className="hidden sm:inline">Connect GSC</span>
+                {/* Date range picker */}
+                <SelectPill
+                  icon={<Calendar className="size-3.5" />}
+                  options={dateRangeOptions}
+                  defaultValue="28d"
+                />
+
+                {/* Theme toggle */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  aria-label="Toggle theme"
+                  className="size-7"
+                >
+                  {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
                 </Button>
+
                 <div className="flex size-7 items-center justify-center rounded-full bg-primary text-[0.6875rem] font-medium text-primary-foreground">
                   {userEmail.charAt(0).toUpperCase()}
                 </div>
               </div>
             </div>
 
-            {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">{children}</div>
           </div>
         </div>
       </main>
+    </div>
+  )
+}
+
+function SelectPill({
+  icon,
+  options,
+  defaultValue,
+}: {
+  icon?: React.ReactNode
+  options: Array<{ value: string; label: string }>
+  defaultValue: string
+}) {
+  return (
+    <div className="relative">
+      <select
+        defaultValue={defaultValue}
+        className="h-8 appearance-none rounded-md border bg-background pl-7 pr-7 text-xs outline-none cursor-pointer hover:bg-muted/30"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {icon && (
+        <div className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+          {icon}
+        </div>
+      )}
+      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
     </div>
   )
 }
