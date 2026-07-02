@@ -2,7 +2,6 @@
 import { useState } from "react"
 import {
   BarChart3,
-  Calendar,
   ChevronDown,
   FileText,
   Globe,
@@ -34,14 +33,7 @@ const navSections = [
   },
 ]
 
-export const dateRangeOptions = [
-  { value: "7d", label: "Last 7 days" },
-  { value: "28d", label: "Last 28 days" },
-  { value: "3m", label: "Last 3 months" },
-  { value: "6m", label: "Last 6 months" },
-  { value: "12m", label: "Last 12 months" },
-  { value: "16m", label: "All time" },
-]
+
 
 export const aggregateOptions = [
   { value: "day", label: "Day" },
@@ -190,9 +182,6 @@ export function DashboardShell({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Date range picker — updates URL search params on overview pages */}
-                <TopBarRangePicker siteId={activeSiteId} pathname={pathname} />
-
                 {/* Theme toggle */}
                 <Button
                   variant="ghost"
@@ -249,43 +238,3 @@ function SelectPill({
   )
 }
 
-function TopBarRangePicker({ siteId, pathname }: { siteId: string; pathname: string }) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const range = searchParams.get("range") || "28d"
-  const onOverview = pathname === `/dashboard/${siteId}` || pathname === `/dashboard/${siteId}/`
-
-  function onChange(value: string) {
-    const params = new URLSearchParams(searchParams.toString())
-    if (value && value !== "28d") {
-      params.set("range", value)
-    } else {
-      params.delete("range")
-    }
-    const qs = params.toString()
-    // Navigate to overview page with the range param (if not already on overview)
-    if (onOverview) {
-      router.push(qs ? `${pathname}?${qs}` : pathname)
-    } else {
-      router.push(qs ? `/dashboard/${siteId}?${qs}` : `/dashboard/${siteId}`)
-    }
-  }
-
-  return (
-    <div className="relative">
-      <Calendar className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <select
-        value={range}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 appearance-none rounded-md border bg-background pl-7 pr-7 text-xs outline-none cursor-pointer hover:bg-muted/30"
-      >
-        {dateRangeOptions.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
-    </div>
-  )
-}
