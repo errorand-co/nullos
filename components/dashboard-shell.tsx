@@ -121,25 +121,7 @@ export function DashboardShell({
               </nav>
             </div>
 
-            <div>
-              {demo && (
-                <div className="mx-4 mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[0.6875rem] text-amber-600">
-                  {configured
-                    ? "Schema missing — run supabase/schema.sql. Showing demo data."
-                    : "Demo mode — configure Supabase to persist data."}
-                </div>
-              )}
-              <div className="border-t p-4">
-                <div className="text-xs font-medium">User</div>
-                <div className="truncate text-[0.6875rem] text-muted-foreground">{userEmail}</div>
-                <form action="/auth/logout" method="post" className="mt-3">
-                  <Button className="w-full justify-start" variant="outline" size="sm" type="submit">
-                    <LogOut />
-                    Sign Out
-                  </Button>
-                </form>
-              </div>
-            </div>
+            {/* (user info moved to top bar) */}
           </aside>
 
           {/* Mobile overlay */}
@@ -152,6 +134,30 @@ export function DashboardShell({
 
           {/* Main content */}
           <div className="flex h-svh flex-1 flex-col overflow-hidden">
+            {/* Top bar */}
+            <div className="flex h-12 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold">
+                  {activeSite?.name || "SEO Insight"}
+                </span>
+                {activeSite && (
+                  <span className="text-xs text-muted-foreground">
+                    {activeSite.url}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="hidden text-xs text-muted-foreground sm:inline">
+                  {userEmail}
+                </span>
+                <form action="/auth/logout" method="post">
+                  <Button variant="outline" size="sm" type="submit">
+                    <LogOut />
+                    Sign Out
+                  </Button>
+                </form>
+              </div>
+            </div>
             <div className="flex-1 overflow-y-auto p-4 md:p-6">{children}</div>
           </div>
         </div>
