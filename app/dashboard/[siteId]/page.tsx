@@ -18,5 +18,14 @@ export default async function SiteOverviewPage({
 
   if (!site) notFound()
 
-  return <OverviewView metrics={site.metrics} trends={site.trends} />
+  return (
+    <OverviewView
+      metrics={site.metrics}
+      trends={site.trends}
+      queries={site.queries}
+      pages={site.pages}
+      countries={site.countries}
+      devices={site.devices}
+    />
+  )
 }

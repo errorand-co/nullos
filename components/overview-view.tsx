@@ -3,9 +3,17 @@
 import { useState } from "react"
 
 import { aggregateOptions, comparisonOptions, dateRangeOptions } from "@/components/dashboard-shell"
+import { DataTable } from "@/components/data-table"
 import { MetricCards } from "@/components/metric-cards"
 import { TrendChart } from "@/components/trend-chart"
-import type { GscMetrics, GscTrendPoint } from "@/lib/seo-types"
+import type {
+  GscCountry,
+  GscDevice,
+  GscMetrics,
+  GscPage,
+  GscQuery,
+  GscTrendPoint,
+} from "@/lib/seo-types"
 
 type Tab = "all" | "indexing" | "traffic" | "engagement"
 type Comparison = (typeof comparisonOptions)[number]["value"]
@@ -22,9 +30,17 @@ const tabs: Array<{ id: Tab; label: string }> = [
 export function OverviewView({
   metrics,
   trends,
+  queries,
+  pages,
+  countries,
+  devices,
 }: {
   metrics: GscMetrics
   trends: GscTrendPoint[]
+  queries: GscQuery[]
+  pages: GscPage[]
+  countries: GscCountry[]
+  devices: GscDevice[]
 }) {
   const [tab, setTab] = useState<Tab>("all")
   const [comparison, setComparison] = useState<Comparison>("previous")
@@ -35,7 +51,6 @@ export function OverviewView({
     <div className="grid gap-4">
       {/* Controls bar */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Tab selector */}
         <div className="inline-flex h-8 rounded-md border bg-card p-0.5 text-xs">
           {tabs.map((t) => (
             <button
@@ -82,6 +97,14 @@ export function OverviewView({
         <h2 className="mb-3 text-sm font-semibold">Performance Trend</h2>
         <TrendChart trends={trends} />
       </div>
+
+      {/* Data Table (referrers/pages/devices/events) */}
+      <DataTable
+        queries={queries}
+        pages={pages}
+        countries={countries}
+        devices={devices}
+      />
     </div>
   )
 }

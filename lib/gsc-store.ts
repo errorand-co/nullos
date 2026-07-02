@@ -162,12 +162,11 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     positionChange: Number((currentPosition - previousPosition).toFixed(1)),
   }
 
-  // --- Queries ---
-  const queryRows = rows.filter(
-    (r) => r.dimension_type === "query" && inRange(r.date, currentStart, currentEnd),
-  )
+  // --- Queries (pipeline aggregates over full date range, no date filter needed) ---
+  const queryRows = rows.filter((r) => r.dimension_type === "query")
   const queryAgg = aggregateByDimension(queryRows)
 
+  // Previous period queries for WoW comparison
   const prevQueryRows = rows.filter(
     (r) => r.dimension_type === "query" && inRange(r.date, previousStart, previousEnd),
   )
@@ -192,9 +191,7 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     })
 
   // --- Pages ---
-  const pageRows = rows.filter(
-    (r) => r.dimension_type === "page" && inRange(r.date, currentStart, currentEnd),
-  )
+  const pageRows = rows.filter((r) => r.dimension_type === "page")
   const pageAgg = aggregateByDimension(pageRows)
 
   const pages: GscPage[] = pageAgg
@@ -210,9 +207,7 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     }))
 
   // --- Countries ---
-  const countryRows = rows.filter(
-    (r) => r.dimension_type === "country" && inRange(r.date, currentStart, currentEnd),
-  )
+  const countryRows = rows.filter((r) => r.dimension_type === "country")
   const countryAgg = aggregateByDimension(countryRows)
 
   const countries: GscCountry[] = countryAgg
@@ -228,9 +223,7 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     }))
 
   // --- Devices ---
-  const deviceRows = rows.filter(
-    (r) => r.dimension_type === "device" && inRange(r.date, currentStart, currentEnd),
-  )
+  const deviceRows = rows.filter((r) => r.dimension_type === "device")
   const deviceAgg = aggregateByDimension(deviceRows)
 
   const devices: GscDevice[] = deviceAgg
@@ -243,7 +236,7 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
       position: d.position,
     }))
 
-  // --- Trends ---
+  // --- Trends (all available daily data) ---
   const trends: GscTrendPoint[] = dates
     .reverse()
     .map((date) => {
