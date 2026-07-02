@@ -75,6 +75,46 @@ function percentChange(current: number, previous: number): number {
   return Number((((current - previous) / previous) * 100).toFixed(1))
 }
 
+// --- Aggregation utilities (used by page for filtering/aggregating) ---
+
+/** Aggregate trend points by week or month. 'day' returns as-is. */
+export function aggregateByPeriod(
+  points: Array<{ date: string; clicks: number; impressions: number; ctr: number; position: number }>,
+  period: string,
+): Array<{ date: string; clicks: number; impressions: number; ctr: number; position: number }> {
+  if (period === "day" || points.length === 0) return points
+  const groups = new Map<string, { date: string; clicks: number; impressions: number; position: number; count: number }>()
+  for (const p of points) {
+    let key: string
+    if (period === "week") {
+      const d = new Date(p.date + "T00:00:00Z")
+      d.setUTCDate(d.getUTCDate() - d.getUTCDay())
+      key = d.toISOString().slice(0, 10)
+    } else {
+      // month
+      key = p.date.slice(0, 7) + "-01"
+    }
+    const existing = groups.get(key)
+    if (existing) {
+      existing.clicks += p.clicks
+      existing.impressions += p.impressions
+      existing.count += 1
+      existing.position =
+        (existing.position * (existing.impressions - p.impressions) + p.position * p.impressions) /
+        existing.impressions
+    } else {
+      groups.set(key, { ...p, count: 1 })
+    }
+  }
+  return Array.from(groups.values()).map((g) => ({
+    date: g.date,
+    clicks: g.clicks,
+    impressions: g.impressions,
+    ctr: g.impressions > 0 ? Number(((g.clicks / g.impressions) * 100).toFixed(2)) : 0,
+    position: Number(g.position.toFixed(1)),
+  }))
+}
+
 // --- Main: build sites from GSC time-series data ---
 
 export async function listGscSites(user: User): Promise<GscDataResult> {
@@ -84,7 +124,6 @@ export async function listGscSites(user: User): Promise<GscDataResult> {
 
   const supabase = await createSupabaseServerClient()
 
-  // Fetch all rows in pages (default limit is 1000, we have ~17000)
   const allRows: GscDailyRow[] = []
   let offset = 0
   const PAGE_SIZE = 1000
@@ -121,12 +160,11 @@ export async function listGscSites(user: User): Promise<GscDataResult> {
 }
 
 function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
-  // Daily totals rows (one per date)
   const dailyRows = rows.filter((r) => r.dimension_type === "daily_totals")
   const dates = [...new Set(dailyRows.map((r) => r.date))].sort().reverse()
   const latestDate = dates[0] || dateMinusDays(new Date().toISOString().slice(0, 10), 0)
 
-  // Current period: last 28 days from latestDate
+  // Default metrics: last 28 days (page can override by recomputing)
   const currentEnd = latestDate
   const currentStart = dateMinusDays(latestDate, 27)
   const previousEnd = dateMinusDays(currentStart, 1)
@@ -138,7 +176,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
   const currentDaily = dailyRows.filter((r) => inRange(r.date, currentStart, currentEnd))
   const previousDaily = dailyRows.filter((r) => inRange(r.date, previousStart, previousEnd))
 
-  // --- Metrics ---
   const currentClicks = currentDaily.reduce((s, r) => s + r.clicks, 0)
   const currentImpressions = currentDaily.reduce((s, r) => s + r.impressions, 0)
   const currentCtr = currentImpressions > 0 ? (currentClicks / currentImpressions) * 100 : 0
@@ -162,11 +199,9 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     positionChange: Number((currentPosition - previousPosition).toFixed(1)),
   }
 
-  // --- Queries (pipeline aggregates over full date range, no date filter needed) ---
+  // Queries/pages/countries/devices: pipeline aggregates over full date range
   const queryRows = rows.filter((r) => r.dimension_type === "query")
   const queryAgg = aggregateByDimension(queryRows)
-
-  // Previous period queries for WoW comparison
   const prevQueryRows = rows.filter(
     (r) => r.dimension_type === "query" && inRange(r.date, previousStart, previousEnd),
   )
@@ -190,7 +225,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
       }
     })
 
-  // --- Pages ---
   const pageRows = rows.filter((r) => r.dimension_type === "page")
   const pageAgg = aggregateByDimension(pageRows)
 
@@ -206,7 +240,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
       primaryKeyword: p.dimension_key.split("/").pop() || p.dimension_key,
     }))
 
-  // --- Countries ---
   const countryRows = rows.filter((r) => r.dimension_type === "country")
   const countryAgg = aggregateByDimension(countryRows)
 
@@ -222,7 +255,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
       position: c.position,
     }))
 
-  // --- Devices ---
   const deviceRows = rows.filter((r) => r.dimension_type === "device")
   const deviceAgg = aggregateByDimension(deviceRows)
 
@@ -236,7 +268,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
       position: d.position,
     }))
 
-  // --- Trends (all available daily data) ---
   const trends: GscTrendPoint[] = dates
     .reverse()
     .map((date) => {

@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 
-import { aggregateOptions, comparisonOptions, dateRangeOptions } from "@/components/dashboard-shell"
 import { DataTable } from "@/components/data-table"
 import { MetricCards } from "@/components/metric-cards"
 import { TrendChart } from "@/components/trend-chart"
@@ -16,9 +15,6 @@ import type {
 } from "@/lib/seo-types"
 
 type Tab = "all" | "indexing" | "traffic" | "engagement"
-type Comparison = (typeof comparisonOptions)[number]["value"]
-type Aggregate = (typeof aggregateOptions)[number]["value"]
-type Range = (typeof dateRangeOptions)[number]["value"]
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: "all", label: "All" },
@@ -27,25 +23,70 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: "engagement", label: "Engagement" },
 ]
 
+const comparisonOptions = [
+  { value: "previous", label: "vs Previous period" },
+  { value: "year", label: "vs Same period last year" },
+  { value: "none", label: "No comparison" },
+] as const
+
+const aggregateOptions = [
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+] as const
+
+const rangeOptions = [
+  { value: "7d", label: "Last 7 days" },
+  { value: "28d", label: "Last 28 days" },
+  { value: "3m", label: "Last 3 months" },
+  { value: "6m", label: "Last 6 months" },
+  { value: "12m", label: "Last 12 months" },
+  { value: "16m", label: "All time" },
+] as const
+
 export function OverviewView({
   metrics,
   trends,
+  previousTrends,
   queries,
   pages,
   countries,
   devices,
+  range,
+  tab,
+  agg,
+  compare,
+  siteId,
 }: {
   metrics: GscMetrics
   trends: GscTrendPoint[]
+  previousTrends: GscTrendPoint[]
   queries: GscQuery[]
   pages: GscPage[]
   countries: GscCountry[]
   devices: GscDevice[]
+  range: string
+  tab: string
+  agg: string
+  compare: string
+  siteId: string
 }) {
-  const [tab, setTab] = useState<Tab>("all")
-  const [comparison, setComparison] = useState<Comparison>("previous")
-  const [aggregate, setAggregate] = useState<Aggregate>("day")
-  const [range, setRange] = useState<Range>("28d")
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  function updateParam(key: string, value: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value && value !== getDefault(key)) {
+      params.set(key, value)
+    } else {
+      params.delete(key)
+    }
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  const currentTab = (tabs.find((t) => t.id === tab)?.id ?? "all") as Tab
 
   return (
     <div className="grid gap-4">
@@ -55,9 +96,9 @@ export function OverviewView({
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => updateParam("tab", t.id)}
               className={`h-7 rounded-sm px-3 font-medium transition ${
-                tab === t.id
+                currentTab === t.id
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
@@ -68,22 +109,22 @@ export function OverviewView({
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <PillSelect<Comparison>
+          <PillSelect<typeof comparisonOptions[number]["value"]>
             options={comparisonOptions}
-            value={comparison}
-            onChange={setComparison}
+            value={compare as typeof comparisonOptions[number]["value"]}
+            onChange={(v) => updateParam("compare", v)}
             getLabel={(o) => o.label}
           />
-          <PillSelect<Aggregate>
+          <PillSelect<typeof aggregateOptions[number]["value"]>
             options={aggregateOptions}
-            value={aggregate}
-            onChange={setAggregate}
+            value={agg as typeof aggregateOptions[number]["value"]}
+            onChange={(v) => updateParam("agg", v)}
             getLabel={(o) => o.label}
           />
-          <PillSelect<Range>
-            options={dateRangeOptions}
-            value={range}
-            onChange={setRange}
+          <PillSelect<typeof rangeOptions[number]["value"]>
+            options={rangeOptions}
+            value={range as typeof rangeOptions[number]["value"]}
+            onChange={(v) => updateParam("range", v)}
             getLabel={(o) => o.label}
           />
         </div>
@@ -106,6 +147,17 @@ export function OverviewView({
         devices={devices}
       />
     </div>
+  )
+}
+
+function getDefault(key: string): string {
+  return (
+    {
+      range: "28d",
+      tab: "all",
+      agg: "day",
+      compare: "previous",
+    }[key] ?? ""
   )
 }
 
