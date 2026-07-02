@@ -135,25 +135,25 @@ export function DashboardShell({
           {/* Main content */}
           <div className="flex h-svh flex-1 flex-col overflow-hidden">
             {/* Top bar */}
-            <div className="flex h-12 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold">
+            <div className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6">
+              <div className="flex flex-col gap-0.5">
+                <h1 className="text-sm font-semibold leading-tight">
                   {activeSite?.name || "SEO Insight"}
-                </span>
+                </h1>
                 {activeSite && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[0.6875rem] text-muted-foreground">
                     {activeSite.url}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span className="hidden text-xs text-muted-foreground sm:inline">
                   {userEmail}
                 </span>
                 <form action="/auth/logout" method="post">
-                  <Button variant="outline" size="sm" type="submit">
+                  <Button variant="ghost" size="sm" type="submit">
                     <LogOut />
-                    Sign Out
+                    <span className="hidden sm:inline">Sign Out</span>
                   </Button>
                 </form>
               </div>
