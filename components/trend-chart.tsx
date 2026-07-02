@@ -25,12 +25,22 @@ export function TrendChart({ trends }: { trends: GscTrendPoint[] }) {
     return <div className="h-64 rounded-md bg-muted" />
   }
 
+  // Show only every Nth date label to avoid crowding
+  const tickInterval = Math.max(1, Math.floor(trends.length / 10))
+
   return (
     <div className="h-64">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={trends}>
+        <LineChart data={trends} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="date" className="text-muted-foreground" fontSize={10} />
+          <XAxis
+            dataKey="date"
+            type="category"
+            className="text-muted-foreground"
+            fontSize={10}
+            interval={tickInterval - 1}
+            tickFormatter={(value: string) => value?.slice(5) || value}
+          />
           <YAxis className="text-muted-foreground" fontSize={10} />
           <Tooltip
             contentStyle={{
@@ -40,6 +50,7 @@ export function TrendChart({ trends }: { trends: GscTrendPoint[] }) {
               fontSize: "12px",
               color: "var(--foreground)",
             }}
+            labelFormatter={(label) => `Date: ${label}`}
           />
           <Line type="monotone" dataKey="clicks" className="stroke-primary" strokeWidth={2} dot={false} />
         </LineChart>
