@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js"
 
+import { countryAlpha3ToAlpha2, countryName } from "@/lib/countries"
 import { isSupabaseConfigured } from "@/lib/env"
 import { sandboxSites } from "@/lib/seo-data"
 import type {
@@ -245,8 +246,8 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     .sort((a, b) => b.clicks - a.clicks)
     .slice(0, 15)
     .map((c) => ({
-      code: c.dimension_key,
-      name: c.dimension_key,
+      code: countryAlpha3ToAlpha2(c.dimension_key),
+      name: countryName(c.dimension_key),
       clicks: c.clicks,
       impressions: c.impressions,
       ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0,

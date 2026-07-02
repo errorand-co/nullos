@@ -5,20 +5,22 @@ import { Search } from "lucide-react"
 
 import type { GscCountry, GscDevice, GscPage, GscQuery } from "@/lib/seo-types"
 
-type DataTab = "referrers" | "pages" | "devices" | "events"
+type DataTab = "queries" | "pages" | "devices" | "countries"
 
 type DataRow = {
   label: string
   icon?: string
-  views: number
-  sessions: number
+  impressions: number
+  clicks: number
+  ctr: number
+  position: number
 }
 
 const tabs: Array<{ id: DataTab; label: string }> = [
-  { id: "referrers", label: "Referrers" },
+  { id: "queries", label: "Queries" },
   { id: "pages", label: "Pages" },
   { id: "devices", label: "Devices" },
-  { id: "events", label: "Events" },
+  { id: "countries", label: "Countries" },
 ]
 
 function deviceIcon(device: string): string {
@@ -36,6 +38,28 @@ function countryFlag(code: string): string {
   return String.fromCodePoint(base + code.charCodeAt(0) - A, base + code.charCodeAt(1) - A)
 }
 
+function titleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
+}
+
+const singularTab: Record<DataTab, string> = {
+  queries: "queries",
+  pages: "pages",
+  devices: "devices",
+  countries: "countries",
+}
+
+const columnHeader: Record<DataTab, string> = {
+  queries: "Query",
+  pages: "Path",
+  devices: "Device",
+  countries: "Country",
+}
+
 export function DataTable({
   queries = [],
   pages = [],
@@ -47,38 +71,46 @@ export function DataTable({
   countries?: GscCountry[]
   devices?: GscDevice[]
 }) {
-  const [tab, setTab] = useState<DataTab>("referrers")
+  const [tab, setTab] = useState<DataTab>("queries")
   const [search, setSearch] = useState("")
 
   const rows: DataRow[] = useMemo(() => {
     switch (tab) {
-      case "referrers":
+      case "queries":
         return queries.map((q) => ({
           label: q.query,
           icon: "🔍",
-          views: q.impressions,
-          sessions: q.clicks,
+          impressions: q.impressions,
+          clicks: q.clicks,
+          ctr: q.ctr,
+          position: q.position,
         }))
       case "pages":
         return pages.map((p) => ({
           label: p.url,
           icon: "🔗",
-          views: p.impressions,
-          sessions: p.clicks,
+          impressions: p.impressions,
+          clicks: p.clicks,
+          ctr: p.ctr,
+          position: p.position,
         }))
       case "devices":
         return devices.map((d) => ({
-          label: d.device,
+          label: titleCase(d.device),
           icon: deviceIcon(d.device),
-          views: d.impressions,
-          sessions: d.clicks,
+          impressions: d.impressions,
+          clicks: d.clicks,
+          ctr: d.ctr,
+          position: d.position,
         }))
-      case "events":
+      case "countries":
         return countries.map((c) => ({
           label: c.name,
           icon: countryFlag(c.code),
-          views: c.impressions,
-          sessions: c.clicks,
+          impressions: c.impressions,
+          clicks: c.clicks,
+          ctr: c.ctr,
+          position: c.position,
         }))
       default:
         return []
@@ -110,50 +142,48 @@ export function DataTable({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${tab}...`}
+            placeholder={`Search ${singularTab[tab]}...`}
             className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
           />
         </div>
       </div>
 
       {/* Table */}
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b text-left">
-            <th className="px-3 py-2 font-medium text-muted-foreground">
-              {tab === "referrers"
-                ? "Referrer"
-                : tab === "pages"
-                  ? "Path"
-                  : tab === "devices"
-                    ? "Device"
-                    : "Country"}
-            </th>
-            <th className="px-3 py-2 text-right font-medium text-muted-foreground">Views</th>
-            <th className="px-3 py-2 text-right font-medium text-muted-foreground">Sessions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.length === 0 ? (
-            <tr>
-              <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
-                No {tab} found
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b text-left">
+              <th className="px-3 py-2 font-medium text-muted-foreground">{columnHeader[tab]}</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground">Clicks</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground">Impr.</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground">CTR</th>
+              <th className="px-3 py-2 text-right font-medium text-muted-foreground">Pos.</th>
             </tr>
-          ) : (
-            filtered.map((r, i) => (
-              <tr key={`${r.label}-${i}`} className="border-b last:border-0">
-                <td className="max-w-0 truncate px-3 py-2">
-                  {r.icon && <span className="mr-1.5">{r.icon}</span>}
-                  {r.label}
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                  No {singularTab[tab]} found
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums">{r.views.toLocaleString()}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{r.sessions.toLocaleString()}</td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              filtered.map((r, i) => (
+                <tr key={`${r.label}-${i}`} className="border-b last:border-0">
+                  <td className="max-w-0 truncate px-3 py-2">
+                    {r.icon && <span className="mr-1.5">{r.icon}</span>}
+                    {r.label}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.clicks.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.impressions.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.ctr.toFixed(2)}%</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.position.toFixed(1)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
