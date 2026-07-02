@@ -42,7 +42,9 @@ function siteName(url: string): string {
 }
 
 function dateMinusDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr + "T00:00:00Z")
+  // Handle both "2026-06-29" and "2026-06-29T17:00:00.000Z" formats
+  const dateOnly = dateStr.split("T")[0]
+  const d = new Date(dateOnly + "T00:00:00Z")
   d.setUTCDate(d.getUTCDate() - days)
   return d.toISOString().slice(0, 10)
 }
