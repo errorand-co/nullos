@@ -11,7 +11,7 @@ import type {
   GscTrendPoint,
   SandboxSite,
 } from "@/lib/seo-types"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSupabaseServiceClient } from "@/lib/supabase/service"
 
 type GscDailyRow = {
   clicks: number
@@ -30,8 +30,6 @@ export type GscDataResult = {
   sites: SandboxSite[]
   missingTable?: boolean
 }
-
-// --- Helpers ---
 
 function slugify(url: string): string {
   return url
@@ -75,9 +73,6 @@ function percentChange(current: number, previous: number): number {
   return Number((((current - previous) / previous) * 100).toFixed(1))
 }
 
-// --- Aggregation utilities (used by page for filtering/aggregating) ---
-
-/** Aggregate trend points by week or month. 'day' returns as-is. */
 export function aggregateByPeriod(
   points: Array<{ date: string; clicks: number; impressions: number; ctr: number; position: number }>,
   period: string,
@@ -91,7 +86,6 @@ export function aggregateByPeriod(
       d.setUTCDate(d.getUTCDate() - d.getUTCDay())
       key = d.toISOString().slice(0, 10)
     } else {
-      // month
       key = p.date.slice(0, 7) + "-01"
     }
     const existing = groups.get(key)
@@ -115,42 +109,48 @@ export function aggregateByPeriod(
   }))
 }
 
-// --- Main: build sites from GSC time-series data ---
-
 export async function listGscSites(user: User): Promise<GscDataResult> {
   if (!isSupabaseConfigured()) {
     return { configured: false, demo: true, sites: sandboxSites }
   }
 
-  const supabase = await createSupabaseServerClient()
+  const supabase = createSupabaseServiceClient()
 
-  const allRows: GscDailyRow[] = []
-  let offset = 0
+  // PostgREST caps at 1000 rows per request — paginate in parallel for speed.
+  // First fetch: 1 row to learn total count.
+  const { count } = await supabase
+    .from("gsc_daily_data")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+
+  const totalRows = count || 0
   const PAGE_SIZE = 1000
-  while (true) {
-    const { data, error } = await supabase
+  const numPages = Math.ceil(totalRows / PAGE_SIZE)
+
+  // Fetch all pages in parallel
+  const pagePromises = Array.from({ length: numPages }, (_, i) =>
+    supabase
       .from("gsc_daily_data")
       .select("*")
+      .eq("user_id", user.id)
       .order("date", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1)
+      .range(i * PAGE_SIZE, i * PAGE_SIZE + PAGE_SIZE - 1),
+  )
+  const results = await Promise.all(pagePromises)
 
+  const allRows: GscDailyRow[] = []
+  for (const { data, error } of results) {
     if (error) {
       if (error.code === "42P01" || error.code === "PGRST205") {
         return { configured: true, demo: true, sites: sandboxSites, missingTable: true }
       }
       return { configured: true, demo: true, sites: sandboxSites }
     }
-
-    if (!data || data.length === 0) break
-    allRows.push(...(data as GscDailyRow[]))
-    if (data.length < PAGE_SIZE) break
-    offset += PAGE_SIZE
+    if (data) allRows.push(...(data as GscDailyRow[]))
   }
-
   if (allRows.length === 0) {
     return { configured: true, demo: true, sites: sandboxSites }
   }
-
   const siteUrls = [...new Set(allRows.map((r) => r.site_url))]
   const sites = siteUrls.map((url) =>
     buildSiteFromRows(url, allRows.filter((r) => r.site_url === url)),
@@ -164,7 +164,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
   const dates = [...new Set(dailyRows.map((r) => r.date))].sort().reverse()
   const latestDate = dates[0] || dateMinusDays(new Date().toISOString().slice(0, 10), 0)
 
-  // Default metrics: last 28 days (page can override by recomputing)
   const currentEnd = latestDate
   const currentStart = dateMinusDays(latestDate, 27)
   const previousEnd = dateMinusDays(currentStart, 1)
@@ -199,7 +198,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     positionChange: Number((currentPosition - previousPosition).toFixed(1)),
   }
 
-  // Queries/pages/countries/devices: pipeline aggregates over full date range
   const queryRows = rows.filter((r) => r.dimension_type === "query")
   const queryAgg = aggregateByDimension(queryRows)
   const prevQueryRows = rows.filter(
@@ -297,10 +295,7 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
 }
 
 function aggregateByDimension(rows: GscDailyRow[]) {
-  const map = new Map<
-    string,
-    { dimension_key: string; clicks: number; impressions: number; position: number; ctr: number }
-  >()
+  const map = new Map<string, { dimension_key: string; clicks: number; impressions: number; position: number; ctr: number }>()
   for (const row of rows) {
     const existing = map.get(row.dimension_key)
     if (existing) {

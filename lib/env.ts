@@ -9,6 +9,9 @@
 export const env = {
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  get SUPABASE_SERVICE_ROLE_KEY() {
+    return process.env.SUPABASE_SERVICE_ROLE_KEY
+  },
   get GEMINI_API_KEY() {
     return process.env.GEMINI_API_KEY
   },
@@ -27,7 +30,6 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 }
 
-// Fail fast on server-side if required public vars are missing.
 function validateServerEnv() {
   if (typeof window === "undefined") {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
