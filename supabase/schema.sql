@@ -26,6 +26,8 @@ to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
+grant all on public.websites to authenticated, anon;
+
 -- Tracked keywords: each user owns their keyword watchlist.
 create table if not exists public.tracked_keywords (
   id text primary key,
@@ -52,6 +54,8 @@ for all
 to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+grant all on public.tracked_keywords to authenticated, anon;
 
 -- updated_at trigger (shared).
 create or replace function public.set_updated_at()
