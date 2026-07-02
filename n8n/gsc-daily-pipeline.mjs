@@ -18,8 +18,8 @@
 import { google } from "googleapis"
 
 const SITE_URLS = [
-  "https://highsostore.com",
-  "https://uptowntrading.co.th",
+  "sc-domain:highsostore.com",
+  "sc-domain:uptowntrading.co.th",
 ]
 
 const SUPABASE_URL = process.env.SUPABASE_URL
