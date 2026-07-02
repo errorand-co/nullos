@@ -79,9 +79,20 @@ export function DashboardShell({
               <label className="mb-2 block text-[0.6875rem] font-medium uppercase text-muted-foreground">
                 Connected Site
               </label>
-              <div className="mb-2 h-9 w-full rounded-md border bg-background px-3 text-xs leading-9">
-                {activeSite?.name || "No site"}
-              </div>
+              <select
+                value={activeSiteId}
+                onChange={(event) => {
+                  const newId = event.target.value
+                  if (newId) window.location.href = `/dashboard/${newId}`
+                }}
+                className="mb-2 h-9 w-full rounded-md border bg-background px-2 text-xs outline-none"
+              >
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
               <div className="mb-6 truncate font-mono text-[0.6875rem] text-muted-foreground">
                 {activeSite?.url}
               </div>

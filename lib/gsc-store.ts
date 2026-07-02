@@ -38,7 +38,7 @@ function slugify(url: string): string {
 }
 
 function siteName(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/^www\./, "")
+  return url.replace(/^https?:\/\//, "").replace(/^sc-domain:/, "").replace(/\/$/, "").replace(/^www\./, "")
 }
 
 function inferIntent(query: string): GscQuery["intent"] {
