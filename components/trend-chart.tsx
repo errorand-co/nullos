@@ -13,7 +13,16 @@ import {
 
 import type { GscTrendPoint } from "@/lib/seo-types"
 
-export function TrendChart({ trends }: { trends: GscTrendPoint[] }) {
+export type TrendMetric = "clicks" | "impressions" | "ctr" | "position"
+
+const metricConfig: Record<TrendMetric, { label: string; color: string; format: (v: number) => string }> = {
+  clicks: { label: "Clicks", color: "var(--primary)", format: (v) => v.toLocaleString() },
+  impressions: { label: "Impressions", color: "#3b82f6", format: (v) => v.toLocaleString() },
+  ctr: { label: "CTR", color: "#10b981", format: (v) => `${v.toFixed(2)}%` },
+  position: { label: "Avg Position", color: "#f59e0b", format: (v) => v.toFixed(1) },
+}
+
+export function TrendChart({ trends, metric }: { trends: GscTrendPoint[]; metric: TrendMetric }) {
   const [chartReady, setChartReady] = useState(false)
 
   useEffect(() => {
@@ -27,6 +36,7 @@ export function TrendChart({ trends }: { trends: GscTrendPoint[] }) {
 
   // Show only every Nth date label to avoid crowding
   const tickInterval = Math.max(1, Math.floor(trends.length / 10))
+  const config = metricConfig[metric]
 
   return (
     <div className="h-64">
@@ -41,7 +51,13 @@ export function TrendChart({ trends }: { trends: GscTrendPoint[] }) {
             interval={tickInterval - 1}
             tickFormatter={(value: string) => value?.slice(5) || value}
           />
-          <YAxis className="text-muted-foreground" fontSize={10} />
+          <YAxis
+            className="text-muted-foreground"
+            fontSize={10}
+            tickFormatter={(v: number) =>
+              metric === "ctr" ? `${v.toFixed(1)}%` : metric === "position" ? v.toFixed(0) : v.toLocaleString()
+            }
+          />
           <Tooltip
             contentStyle={{
               backgroundColor: "var(--card)",
@@ -51,8 +67,16 @@ export function TrendChart({ trends }: { trends: GscTrendPoint[] }) {
               color: "var(--foreground)",
             }}
             labelFormatter={(label) => `Date: ${label}`}
+            formatter={(value) => [config.format(Number(value)), config.label]}
           />
-          <Line type="monotone" dataKey="clicks" className="stroke-primary" strokeWidth={2} dot={false} />
+          <Line
+            type="monotone"
+            dataKey={metric}
+            stroke={config.color}
+            strokeWidth={2}
+            dot={false}
+            name={config.label}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>

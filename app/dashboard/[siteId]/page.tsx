@@ -27,11 +27,10 @@ export default async function SiteOverviewPage({
     range = "28d",
     from,
     to,
-    tab = "all",
+    tab = "clicks",
     agg = "day",
     compare = "previous",
   } = await searchParams
-
   const user = await getCurrentUser()
   if (!user) notFound()
 

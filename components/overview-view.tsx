@@ -6,7 +6,7 @@ import { Calendar, X } from "lucide-react"
 
 import { DataTable } from "@/components/data-table"
 import { MetricCards } from "@/components/metric-cards"
-import { TrendChart } from "@/components/trend-chart"
+import { TrendChart, type TrendMetric } from "@/components/trend-chart"
 import { cn } from "@/lib/utils"
 import type {
   GscCountry,
@@ -17,13 +17,11 @@ import type {
   GscTrendPoint,
 } from "@/lib/seo-types"
 
-type Tab = "all" | "indexing" | "traffic" | "engagement"
-
-const tabs: Array<{ id: Tab; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "indexing", label: "Indexing" },
-  { id: "traffic", label: "Traffic" },
-  { id: "engagement", label: "Engagement" },
+const metricOptions: Array<{ id: TrendMetric; label: string }> = [
+  { id: "clicks", label: "Clicks" },
+  { id: "impressions", label: "Impressions" },
+  { id: "ctr", label: "CTR" },
+  { id: "position", label: "Position" },
 ]
 
 const comparisonOptions = [
@@ -129,55 +127,38 @@ export function OverviewView({
     router.push(qs ? `${pathname}?${qs}` : pathname)
   }
 
-  const currentTab = (tabs.find((t) => t.id === tab)?.id ?? "all") as Tab
 
   const isCustom = Boolean(initialFrom && initialTo)
   const rangeLabel = isCustom
     ? formatRangeLabel(initialFrom!, initialTo!)
     : (rangePresets.find((r) => r.value === initialRange)?.label ?? "Last 28 days")
 
+  const currentTab = (metricOptions.find((t) => t.id === tab)?.id ?? "clicks") as TrendMetric
+
   return (
     <div className="grid gap-4">
       {/* Controls bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex h-8 rounded-md border bg-card p-0.5 text-xs">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => updateParam("tab", t.id)}
-              className={`h-7 rounded-sm px-3 font-medium transition ${
-                currentTab === t.id
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <PillSelect<typeof comparisonOptions[number]["value"]>
-            options={comparisonOptions}
-            value={compare as typeof comparisonOptions[number]["value"]}
-            onChange={(v) => updateParam("compare", v)}
-            getLabel={(o) => o.label}
-          />
-          <PillSelect<typeof aggregateOptions[number]["value"]>
-            options={aggregateOptions}
-            value={agg as typeof aggregateOptions[number]["value"]}
-            onChange={(v) => updateParam("agg", v)}
-            getLabel={(o) => o.label}
-          />
-          <DateRangePicker
-            label={rangeLabel}
-            isCustom={isCustom}
-            initialFrom={initialFrom ?? ""}
-            initialTo={initialTo ?? ""}
-            onApplyPreset={applyPreset}
-            onApplyCustom={applyCustom}
-          />
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <PillSelect<typeof comparisonOptions[number]["value"]>
+          options={comparisonOptions}
+          value={compare as typeof comparisonOptions[number]["value"]}
+          onChange={(v) => updateParam("compare", v)}
+          getLabel={(o) => o.label}
+        />
+        <PillSelect<typeof aggregateOptions[number]["value"]>
+          options={aggregateOptions}
+          value={agg as typeof aggregateOptions[number]["value"]}
+          onChange={(v) => updateParam("agg", v)}
+          getLabel={(o) => o.label}
+        />
+        <DateRangePicker
+          label={rangeLabel}
+          isCustom={isCustom}
+          initialFrom={initialFrom ?? ""}
+          initialTo={initialTo ?? ""}
+          onApplyPreset={applyPreset}
+          onApplyCustom={applyCustom}
+        />
       </div>
 
       {/* Metric cards */}
@@ -185,8 +166,25 @@ export function OverviewView({
 
       {/* Performance Trend */}
       <div className="rounded-md border bg-card p-4">
-        <h2 className="mb-3 text-sm font-semibold">Performance Trend</h2>
-        <TrendChart trends={trends} />
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Performance Trend</h2>
+          <div className="inline-flex h-7 rounded-md border bg-background p-0.5 text-[0.6875rem]">
+            {metricOptions.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => updateParam("tab", m.id)}
+                className={`h-6 rounded-sm px-2.5 font-medium transition ${
+                  currentTab === m.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <TrendChart trends={trends} metric={currentTab} />
       </div>
 
       {/* Data Table (referrers/pages/devices/events) */}
@@ -204,7 +202,7 @@ function getDefault(key: string): string {
   return (
     {
       range: "28d",
-      tab: "all",
+      tab: "clicks",
       agg: "day",
       compare: "previous",
     }[key] ?? ""
