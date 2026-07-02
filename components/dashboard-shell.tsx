@@ -70,12 +70,7 @@ export function DashboardShell({
                 <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
                   <Zap className="size-4" />
                 </div>
-                <div>
-                  <div className="text-sm font-semibold">SEO Insight</div>
-                  <div className="text-xs text-muted-foreground">GSC command center</div>
-                </div>
               </div>
-
               <label className="mb-2 block text-[0.6875rem] font-medium uppercase text-muted-foreground">
                 Connected Site
               </label>
