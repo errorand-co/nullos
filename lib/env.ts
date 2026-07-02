@@ -1,24 +1,14 @@
 /**
  * Centralised env access. Fails fast with a clear message at the call site
  * rather than producing a cryptic Supabase URL error deep in a request.
+ *
+ * IMPORTANT: NEXT_PUBLIC_ vars must be referenced directly (not via a dynamic
+ * lookup) so Next.js can statically inline them into the client bundle.
  */
-function required(name: string, fallback?: string): string {
-  const value = process.env[name] || fallback
-  if (!value) {
-    throw new Error(
-      `Missing environment variable: ${name}. Set it in .env.local or your deployment platform.`,
-    )
-  }
-  return value
-}
 
 export const env = {
-  get NEXT_PUBLIC_SUPABASE_URL() {
-    return required("NEXT_PUBLIC_SUPABASE_URL")
-  },
-  get NEXT_PUBLIC_SUPABASE_ANON_KEY() {
-    return required("NEXT_PUBLIC_SUPABASE_ANON_KEY")
-  },
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   get GEMINI_API_KEY() {
     return process.env.GEMINI_API_KEY
   },
@@ -34,5 +24,23 @@ export const env = {
 }
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return Boolean(env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 }
+
+// Fail fast on server-side if required public vars are missing.
+function validateServerEnv() {
+  if (typeof window === "undefined") {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      throw new Error(
+        "Missing environment variable: NEXT_PUBLIC_SUPABASE_URL. Set it in .env.local or your deployment platform.",
+      )
+    }
+    if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error(
+        "Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY. Set it in .env.local or your deployment platform.",
+      )
+    }
+  }
+}
+
+validateServerEnv()

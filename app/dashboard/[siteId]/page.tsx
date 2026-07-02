@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 
 import { MetricCards } from "@/components/metric-cards"
 import { TrendChart } from "@/components/trend-chart"
-import { listWebsites } from "@/lib/website-store"
+import { listGscSites } from "@/lib/gsc-store"
 import { getCurrentUser } from "@/lib/auth"
 import type { SandboxSite } from "@/lib/seo-types"
 import type { GscMetrics } from "@/lib/seo-types"
@@ -16,7 +16,7 @@ export default async function SiteOverviewPage({
   const user = await getCurrentUser()
   if (!user) notFound()
 
-  const { sites } = await listWebsites(user)
+  const { sites } = await listGscSites(user)
   const site = sites.find((s) => s.id === siteId)
 
   if (!site) notFound()

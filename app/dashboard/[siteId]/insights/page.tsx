@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 
 import { InsightsPanel } from "@/components/insights-panel"
 import { getCurrentUser } from "@/lib/auth"
-import { listWebsites } from "@/lib/website-store"
+import { listGscSites } from "@/lib/gsc-store"
 
 export default async function InsightsPage({
   params,
@@ -13,7 +13,7 @@ export default async function InsightsPage({
   const user = await getCurrentUser()
   if (!user) notFound()
 
-  const { sites } = await listWebsites(user)
+  const { sites } = await listGscSites(user)
   const site = sites.find((s) => s.id === siteId)
 
   if (!site) notFound()

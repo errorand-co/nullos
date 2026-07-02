@@ -1,0 +1,140 @@
+{
+  "name": "GSC Daily Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 24h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "siteUrl",
+              "value": "={{ JSON.stringify(['https://highsostore.com', 'https://uptowntrading.co.th']) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-sites",
+      "name": "Define Sites",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "fieldType": "string",
+        "fields": {
+          "values": [
+            {
+              "fieldName": "siteUrl",
+              "fieldValue": "={{ $json.siteUrl }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "split-sites",
+      "name": "Split Sites",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.siteUrl.startsWith('sc-domain:') ? 'https://www.googleapis.com/webmasters/v3/sites/' + encodeURIComponent($json.siteUrl) + '/searchAnalytics/query' : 'https://www.googleapis.com/webmasters/v3/sites/' + encodeURIComponent($json.siteUrl) + '/searchAnalytics/query' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node['Get Token'].json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "startDate",
+              "value": "={{ $today.minus({days: 3}).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "endDate",
+              "value": "={{ $today.minus({days: 1}).toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "dimensions",
+              "value": "[\"query\"]"
+            },
+            {
+              "name": "rowLimit",
+              "value": "1000"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-queries",
+      "name": "Fetch Queries",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Every 24h": {
+      "main": [
+        [
+          {
+            "node": "Define Sites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Define Sites": {
+      "main": [
+        [
+          {
+            "node": "Split Sites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Sites": {
+      "main": [
+        [
+          {
+            "node": "Fetch Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

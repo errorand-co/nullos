@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 
 import { DashboardShell } from "@/components/dashboard-shell"
 import { getCurrentUser } from "@/lib/auth"
-import { listWebsites } from "@/lib/website-store"
+import { listGscSites } from "@/lib/gsc-store"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
@@ -11,7 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/auth/login")
   }
 
-  const { sites, demo, configured } = await listWebsites(user)
+  const { sites, demo, configured } = await listGscSites(user)
 
   return (
     <DashboardShell
