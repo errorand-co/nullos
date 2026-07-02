@@ -168,15 +168,13 @@ export function DashboardShell({
             <div className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 md:px-6">
               {/* Breadcrumb */}
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Sites</span>
+                <span className="font-medium text-foreground">{activeSite?.name || "—"}</span>
                 <span className="text-muted-foreground">/</span>
-                <span className="text-foreground">{activeSite?.name || "—"}</span>
-                <span className="text-muted-foreground">/</span>
-                <span className="font-medium text-foreground">{pageLabel}</span>
+                <span className="text-foreground">{pageLabel}</span>
               </div>
 
               {/* Search */}
-              <div className="hidden flex-1 max-w-md mx-6 md:flex items-center gap-2 h-9 rounded-md border bg-background px-3">
+              <div className="hidden md:flex flex-1 max-w-md mx-6 items-center gap-2 h-9 rounded-md border bg-background px-3">
                 <Search className="size-3.5 text-muted-foreground" />
                 <input
                   type="text"
@@ -184,7 +182,6 @@ export function DashboardShell({
                   className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
                 />
               </div>
-
               {/* Right side */}
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm">
