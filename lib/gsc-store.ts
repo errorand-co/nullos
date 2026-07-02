@@ -41,6 +41,11 @@ function siteName(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/^sc-domain:/, "").replace(/\/$/, "").replace(/^www\./, "")
 }
 
+function dateMinusDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00Z")
+  d.setUTCDate(d.getUTCDate() - days)
+  return d.toISOString().slice(0, 10)
+}
 function inferIntent(query: string): GscQuery["intent"] {
   const q = query.toLowerCase()
   if (q.match(/buy|price|cost|discount|deal|cheap|order|shop/)) return "Transactional"
@@ -99,20 +104,13 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
   const dates = [...new Set(dailyRows.map((r) => r.date))].sort().reverse()
   const latestDate = dates[0]
 
-  // Current period: last 28 days from latestDate
-  // Previous period: 28 days before that
-  const currentEnd = new Date(latestDate)
-  const currentStart = new Date(currentEnd)
-  currentStart.setDate(currentStart.getDate() - 27)
-  const previousEnd = new Date(currentStart)
-  previousEnd.setDate(previousEnd.getDate() - 1)
-  const previousStart = new Date(previousEnd)
-  previousStart.setDate(previousStart.getDate() - 27)
+  // Current period: last 28 days from latestDate (string comparison)
+  const currentEnd = latestDate
+  const currentStart = dateMinusDays(latestDate, 27)
+  const previousEnd = dateMinusDays(currentStart, 1)
+  const previousStart = dateMinusDays(previousEnd, 27)
 
-  const inRange = (dateStr: string, start: Date, end: Date) => {
-    const d = new Date(dateStr)
-    return d >= start && d <= end
-  }
+  const inRange = (dateStr: string, start: string, end: string) => dateStr >= start && dateStr <= end
 
   const currentDaily = dailyRows.filter((r) => inRange(r.date, currentStart, currentEnd))
   const previousDaily = dailyRows.filter((r) => inRange(r.date, previousStart, previousEnd))
