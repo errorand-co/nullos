@@ -34,20 +34,28 @@ export type GscDataResult = {
 // --- Helpers ---
 
 function slugify(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/^sc-domain:/, "").replace(/\/$/, "").replace(/[^a-z0-9]+/gi, "-")
+  return url
+    .replace(/^https?:\/\//, "")
+    .replace(/^sc-domain:/, "")
+    .replace(/\/$/, "")
+    .replace(/[^a-z0-9]+/gi, "-")
 }
 
 function siteName(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/^sc-domain:/, "").replace(/\/$/, "").replace(/^www\./, "")
+  return url
+    .replace(/^https?:\/\//, "")
+    .replace(/^sc-domain:/, "")
+    .replace(/\/$/, "")
+    .replace(/^www\./, "")
 }
 
 function dateMinusDays(dateStr: string, days: number): string {
-  // Handle both "2026-06-29" and "2026-06-29T17:00:00.000Z" formats
   const dateOnly = dateStr.split("T")[0]
   const d = new Date(dateOnly + "T00:00:00Z")
   d.setUTCDate(d.getUTCDate() - days)
   return d.toISOString().slice(0, 10)
 }
+
 function inferIntent(query: string): GscQuery["intent"] {
   const q = query.toLowerCase()
   if (q.match(/buy|price|cost|discount|deal|cheap|order|shop/)) return "Transactional"
@@ -76,26 +84,38 @@ export async function listGscSites(user: User): Promise<GscDataResult> {
 
   const supabase = await createSupabaseServerClient()
 
-  const { data: allRows, error } = await supabase
-    .from("gsc_daily_data")
-    .select("*")
-    .order("date", { ascending: false })
+  // Fetch all rows in pages (default limit is 1000, we have ~17000)
+  const allRows: GscDailyRow[] = []
+  let offset = 0
+  const PAGE_SIZE = 1000
+  while (true) {
+    const { data, error } = await supabase
+      .from("gsc_daily_data")
+      .select("*")
+      .order("date", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1)
 
-  if (error) {
-    if (error.code === "42P01" || error.code === "PGRST205") {
-      return { configured: true, demo: true, sites: sandboxSites, missingTable: true }
+    if (error) {
+      if (error.code === "42P01" || error.code === "PGRST205") {
+        return { configured: true, demo: true, sites: sandboxSites, missingTable: true }
+      }
+      return { configured: true, demo: true, sites: sandboxSites }
     }
+
+    if (!data || data.length === 0) break
+    allRows.push(...(data as GscDailyRow[]))
+    if (data.length < PAGE_SIZE) break
+    offset += PAGE_SIZE
+  }
+
+  if (allRows.length === 0) {
     return { configured: true, demo: true, sites: sandboxSites }
   }
 
-  if (!allRows || allRows.length === 0) {
-    return { configured: true, demo: true, sites: sandboxSites }
-  }
-
-  const rows = allRows as GscDailyRow[]
-
-  const siteUrls = [...new Set(rows.map((r) => r.site_url))]
-  const sites = siteUrls.map((url) => buildSiteFromRows(url, rows.filter((r) => r.site_url === url)))
+  const siteUrls = [...new Set(allRows.map((r) => r.site_url))]
+  const sites = siteUrls.map((url) =>
+    buildSiteFromRows(url, allRows.filter((r) => r.site_url === url)),
+  )
 
   return { configured: true, demo: false, sites }
 }
@@ -104,35 +124,32 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
   // Daily totals rows (one per date)
   const dailyRows = rows.filter((r) => r.dimension_type === "daily_totals")
   const dates = [...new Set(dailyRows.map((r) => r.date))].sort().reverse()
-  const latestDate = dates[0]
+  const latestDate = dates[0] || dateMinusDays(new Date().toISOString().slice(0, 10), 0)
 
-  // Current period: last 28 days from latestDate (string comparison)
+  // Current period: last 28 days from latestDate
   const currentEnd = latestDate
   const currentStart = dateMinusDays(latestDate, 27)
   const previousEnd = dateMinusDays(currentStart, 1)
   const previousStart = dateMinusDays(previousEnd, 27)
 
-  const inRange = (dateStr: string, start: string, end: string) => dateStr >= start && dateStr <= end
+  const inRange = (dateStr: string, start: string, end: string) =>
+    dateStr >= start && dateStr <= end
 
   const currentDaily = dailyRows.filter((r) => inRange(r.date, currentStart, currentEnd))
   const previousDaily = dailyRows.filter((r) => inRange(r.date, previousStart, previousEnd))
 
-  // --- Metrics: sum current period vs previous period ---
+  // --- Metrics ---
   const currentClicks = currentDaily.reduce((s, r) => s + r.clicks, 0)
   const currentImpressions = currentDaily.reduce((s, r) => s + r.impressions, 0)
   const currentCtr = currentImpressions > 0 ? (currentClicks / currentImpressions) * 100 : 0
   const currentPosition =
-    currentDaily.length > 0
-      ? currentDaily.reduce((s, r) => s + r.position, 0) / currentDaily.length
-      : 0
+    currentDaily.length > 0 ? currentDaily.reduce((s, r) => s + r.position, 0) / currentDaily.length : 0
 
   const previousClicks = previousDaily.reduce((s, r) => s + r.clicks, 0)
   const previousImpressions = previousDaily.reduce((s, r) => s + r.impressions, 0)
   const previousCtr = previousImpressions > 0 ? (previousClicks / previousImpressions) * 100 : 0
   const previousPosition =
-    previousDaily.length > 0
-      ? previousDaily.reduce((s, r) => s + r.position, 0) / previousDaily.length
-      : 0
+    previousDaily.length > 0 ? previousDaily.reduce((s, r) => s + r.position, 0) / previousDaily.length : 0
 
   const metrics: GscMetrics = {
     clicks: currentClicks,
@@ -145,13 +162,12 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     positionChange: Number((currentPosition - previousPosition).toFixed(1)),
   }
 
-  // --- Queries: from current period, look up previous for comparison ---
-  const queryRows = rows
-    .filter((r) => r.dimension_type === "query" && inRange(r.date, currentStart, currentEnd))
-    // Aggregate by dimension_key (sum across days in current period)
+  // --- Queries ---
+  const queryRows = rows.filter(
+    (r) => r.dimension_type === "query" && inRange(r.date, currentStart, currentEnd),
+  )
   const queryAgg = aggregateByDimension(queryRows)
 
-  // For comparison, get queries from the previous period
   const prevQueryRows = rows.filter(
     (r) => r.dimension_type === "query" && inRange(r.date, previousStart, previousEnd),
   )
@@ -227,7 +243,7 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
       position: d.position,
     }))
 
-  // --- Trends: all available days, daily clicks/impressions ---
+  // --- Trends ---
   const trends: GscTrendPoint[] = dates
     .reverse()
     .map((date) => {
@@ -256,7 +272,6 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
   }
 }
 
-// Aggregate rows by dimension_key: sum clicks/impressions, weighted average position
 function aggregateByDimension(rows: GscDailyRow[]) {
   const map = new Map<
     string,
@@ -267,7 +282,6 @@ function aggregateByDimension(rows: GscDailyRow[]) {
     if (existing) {
       existing.clicks += row.clicks
       existing.impressions += row.impressions
-      // Weighted average position by impressions
       const totalImpressions = existing.impressions
       existing.position =
         (existing.position * (totalImpressions - row.impressions) + row.position * row.impressions) /
