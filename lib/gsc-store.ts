@@ -34,7 +34,7 @@ export type GscDataResult = {
 // --- Helpers ---
 
 function slugify(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/[^a-z0-9]+/gi, "-")
+  return url.replace(/^https?:\/\//, "").replace(/^sc-domain:/, "").replace(/\/$/, "").replace(/[^a-z0-9]+/gi, "-")
 }
 
 function siteName(url: string): string {
@@ -50,7 +50,6 @@ function inferIntent(query: string): GscQuery["intent"] {
 }
 
 function getOpportunityScore(position: number, ctr: number): number {
-  // High opportunity = high impressions but low position (page 2+)
   const positionScore = position >= 5 && position <= 20 ? 100 - position * 4 : 0
   const ctrScore = ctr < 3 ? 30 : 0
   return Math.min(100, Math.round(positionScore + ctrScore))
@@ -70,7 +69,6 @@ export async function listGscSites(user: User): Promise<GscDataResult> {
 
   const supabase = await createSupabaseServerClient()
 
-  // Get all distinct site_urls the user has data for
   const { data: allRows, error } = await supabase
     .from("gsc_daily_data")
     .select("*")
@@ -89,7 +87,6 @@ export async function listGscSites(user: User): Promise<GscDataResult> {
 
   const rows = allRows as GscDailyRow[]
 
-  // Group by site_url
   const siteUrls = [...new Set(rows.map((r) => r.site_url))]
   const sites = siteUrls.map((url) => buildSiteFromRows(url, rows.filter((r) => r.site_url === url)))
 
@@ -97,106 +94,152 @@ export async function listGscSites(user: User): Promise<GscDataResult> {
 }
 
 function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
-  // Get the two most recent dates for comparison
-  const dates = [...new Set(rows.map((r) => r.date))].sort().reverse()
+  // Daily totals rows (one per date)
+  const dailyRows = rows.filter((r) => r.dimension_type === "daily_totals")
+  const dates = [...new Set(dailyRows.map((r) => r.date))].sort().reverse()
   const latestDate = dates[0]
-  const previousDate = dates[1] || dates[0]
 
-  const latestRows = rows.filter((r) => r.date === latestDate)
-  const previousRows = rows.filter((r) => r.date === previousDate)
+  // Current period: last 28 days from latestDate
+  // Previous period: 28 days before that
+  const currentEnd = new Date(latestDate)
+  const currentStart = new Date(currentEnd)
+  currentStart.setDate(currentStart.getDate() - 27)
+  const previousEnd = new Date(currentStart)
+  previousEnd.setDate(previousEnd.getDate() - 1)
+  const previousStart = new Date(previousEnd)
+  previousStart.setDate(previousStart.getDate() - 27)
 
-  // --- Totals ---
-  const totals = latestRows.find((r) => r.dimension_type === "totals")
-  const prevTotals = previousRows.find((r) => r.dimension_type === "totals") || totals
-
-  const metrics: GscMetrics = {
-    clicks: totals?.clicks || 0,
-    impressions: totals?.impressions || 0,
-    ctr: totals?.ctr || 0,
-    position: totals?.position || 0,
-    clicksChange: percentChange(totals?.clicks || 0, prevTotals?.clicks || 0),
-    impressionsChange: percentChange(totals?.impressions || 0, prevTotals?.impressions || 0),
-    ctrChange: Number(((totals?.ctr || 0) - (prevTotals?.ctr || 0)).toFixed(2)),
-    positionChange: Number(((totals?.position || 0) - (prevTotals?.position || 0)).toFixed(1)),
+  const inRange = (dateStr: string, start: Date, end: Date) => {
+    const d = new Date(dateStr)
+    return d >= start && d <= end
   }
 
-  // --- Queries ---
-  const queryRows = latestRows
-    .filter((r) => r.dimension_type === "query")
+  const currentDaily = dailyRows.filter((r) => inRange(r.date, currentStart, currentEnd))
+  const previousDaily = dailyRows.filter((r) => inRange(r.date, previousStart, previousEnd))
+
+  // --- Metrics: sum current period vs previous period ---
+  const currentClicks = currentDaily.reduce((s, r) => s + r.clicks, 0)
+  const currentImpressions = currentDaily.reduce((s, r) => s + r.impressions, 0)
+  const currentCtr = currentImpressions > 0 ? (currentClicks / currentImpressions) * 100 : 0
+  const currentPosition =
+    currentDaily.length > 0
+      ? currentDaily.reduce((s, r) => s + r.position, 0) / currentDaily.length
+      : 0
+
+  const previousClicks = previousDaily.reduce((s, r) => s + r.clicks, 0)
+  const previousImpressions = previousDaily.reduce((s, r) => s + r.impressions, 0)
+  const previousCtr = previousImpressions > 0 ? (previousClicks / previousImpressions) * 100 : 0
+  const previousPosition =
+    previousDaily.length > 0
+      ? previousDaily.reduce((s, r) => s + r.position, 0) / previousDaily.length
+      : 0
+
+  const metrics: GscMetrics = {
+    clicks: currentClicks,
+    impressions: currentImpressions,
+    ctr: Number(currentCtr.toFixed(2)),
+    position: Number(currentPosition.toFixed(1)),
+    clicksChange: percentChange(currentClicks, previousClicks),
+    impressionsChange: percentChange(currentImpressions, previousImpressions),
+    ctrChange: Number((currentCtr - previousCtr).toFixed(2)),
+    positionChange: Number((currentPosition - previousPosition).toFixed(1)),
+  }
+
+  // --- Queries: from current period, look up previous for comparison ---
+  const queryRows = rows
+    .filter((r) => r.dimension_type === "query" && inRange(r.date, currentStart, currentEnd))
+    // Aggregate by dimension_key (sum across days in current period)
+  const queryAgg = aggregateByDimension(queryRows)
+
+  // For comparison, get queries from the previous period
+  const prevQueryRows = rows.filter(
+    (r) => r.dimension_type === "query" && inRange(r.date, previousStart, previousEnd),
+  )
+  const prevQueryAgg = aggregateByDimension(prevQueryRows)
+
+  const queries: GscQuery[] = queryAgg
     .sort((a, b) => b.clicks - a.clicks)
     .slice(0, 25)
-
-  const prevQueryRows = previousRows.filter((r) => r.dimension_type === "query")
-  const queries: GscQuery[] = queryRows.map((r) => {
-    const prev = prevQueryRows.find((pr) => pr.dimension_key === r.dimension_key)
-    return {
-      query: r.dimension_key,
-      clicks: r.clicks,
-      impressions: r.impressions,
-      ctr: r.ctr,
-      position: r.position,
-      previousClicks: prev?.clicks || 0,
-      previousImpressions: prev?.impressions || 0,
-      intent: inferIntent(r.dimension_key),
-      opportunityScore: getOpportunityScore(r.position, r.ctr),
-    }
-  })
+    .map((q) => {
+      const prev = prevQueryAgg.find((p) => p.dimension_key === q.dimension_key)
+      return {
+        query: q.dimension_key,
+        clicks: q.clicks,
+        impressions: q.impressions,
+        ctr: q.impressions > 0 ? Number(((q.clicks / q.impressions) * 100).toFixed(2)) : 0,
+        position: q.position,
+        previousClicks: prev?.clicks || 0,
+        previousImpressions: prev?.impressions || 0,
+        intent: inferIntent(q.dimension_key),
+        opportunityScore: getOpportunityScore(q.position, q.ctr),
+      }
+    })
 
   // --- Pages ---
-  const pageRows = latestRows
-    .filter((r) => r.dimension_type === "page")
+  const pageRows = rows.filter(
+    (r) => r.dimension_type === "page" && inRange(r.date, currentStart, currentEnd),
+  )
+  const pageAgg = aggregateByDimension(pageRows)
+
+  const pages: GscPage[] = pageAgg
     .sort((a, b) => b.clicks - a.clicks)
     .slice(0, 25)
-
-  const pages: GscPage[] = pageRows.map((r) => ({
-    url: r.dimension_key,
-    clicks: r.clicks,
-    impressions: r.impressions,
-    ctr: r.ctr,
-    position: r.position,
-    primaryKeyword: r.dimension_key.split("/").pop() || r.dimension_key,
-  }))
+    .map((p) => ({
+      url: p.dimension_key,
+      clicks: p.clicks,
+      impressions: p.impressions,
+      ctr: p.impressions > 0 ? Number(((p.clicks / p.impressions) * 100).toFixed(2)) : 0,
+      position: p.position,
+      primaryKeyword: p.dimension_key.split("/").pop() || p.dimension_key,
+    }))
 
   // --- Countries ---
-  const countryRows = latestRows
-    .filter((r) => r.dimension_type === "country")
+  const countryRows = rows.filter(
+    (r) => r.dimension_type === "country" && inRange(r.date, currentStart, currentEnd),
+  )
+  const countryAgg = aggregateByDimension(countryRows)
+
+  const countries: GscCountry[] = countryAgg
     .sort((a, b) => b.clicks - a.clicks)
     .slice(0, 15)
-
-  const countries: GscCountry[] = countryRows.map((r) => ({
-    code: r.dimension_key,
-    name: r.dimension_key,
-    clicks: r.clicks,
-    impressions: r.impressions,
-    ctr: r.ctr,
-    position: r.position,
-  }))
+    .map((c) => ({
+      code: c.dimension_key,
+      name: c.dimension_key,
+      clicks: c.clicks,
+      impressions: c.impressions,
+      ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0,
+      position: c.position,
+    }))
 
   // --- Devices ---
-  const deviceRows = latestRows
-    .filter((r) => r.dimension_type === "device")
+  const deviceRows = rows.filter(
+    (r) => r.dimension_type === "device" && inRange(r.date, currentStart, currentEnd),
+  )
+  const deviceAgg = aggregateByDimension(deviceRows)
+
+  const devices: GscDevice[] = deviceAgg
     .sort((a, b) => b.clicks - a.clicks)
+    .map((d) => ({
+      device: d.dimension_key as GscDevice["device"],
+      clicks: d.clicks,
+      impressions: d.impressions,
+      ctr: d.impressions > 0 ? Number(((d.clicks / d.impressions) * 100).toFixed(2)) : 0,
+      position: d.position,
+    }))
 
-  const devices: GscDevice[] = deviceRows.map((r) => ({
-    device: r.dimension_key as GscDevice["device"],
-    clicks: r.clicks,
-    impressions: r.impressions,
-    ctr: r.ctr,
-    position: r.position,
-  }))
-
-  // --- Trends (daily totals over time) ---
-  const trendDates = dates.reverse().slice(-30) // last 30 days
-  const trends: GscTrendPoint[] = trendDates.map((date) => {
-    const dayTotals = rows.find((r) => r.date === date && r.dimension_type === "totals")
-    return {
-      date,
-      clicks: dayTotals?.clicks || 0,
-      impressions: dayTotals?.impressions || 0,
-      ctr: dayTotals?.ctr || 0,
-      position: dayTotals?.position || 0,
-    }
-  })
+  // --- Trends: all available days, daily clicks/impressions ---
+  const trends: GscTrendPoint[] = dates
+    .reverse()
+    .map((date) => {
+      const day = dailyRows.find((r) => r.date === date)
+      return {
+        date,
+        clicks: day?.clicks || 0,
+        impressions: day?.impressions || 0,
+        ctr: day?.ctr || 0,
+        position: day?.position || 0,
+      }
+    })
 
   return {
     id: slugify(siteUrl),
@@ -211,4 +254,36 @@ function buildSiteFromRows(siteUrl: string, rows: GscDailyRow[]): SandboxSite {
     devices,
     trends,
   }
+}
+
+// Aggregate rows by dimension_key: sum clicks/impressions, weighted average position
+function aggregateByDimension(rows: GscDailyRow[]) {
+  const map = new Map<
+    string,
+    { dimension_key: string; clicks: number; impressions: number; position: number; ctr: number }
+  >()
+  for (const row of rows) {
+    const existing = map.get(row.dimension_key)
+    if (existing) {
+      existing.clicks += row.clicks
+      existing.impressions += row.impressions
+      // Weighted average position by impressions
+      const totalImpressions = existing.impressions
+      existing.position =
+        (existing.position * (totalImpressions - row.impressions) + row.position * row.impressions) /
+        totalImpressions
+    } else {
+      map.set(row.dimension_key, {
+        dimension_key: row.dimension_key,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        position: row.position,
+        ctr: row.ctr,
+      })
+    }
+  }
+  return Array.from(map.values()).map((v) => ({
+    ...v,
+    position: Number(v.position.toFixed(2)),
+  }))
 }

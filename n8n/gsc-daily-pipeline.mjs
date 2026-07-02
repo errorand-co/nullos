@@ -2,13 +2,13 @@
  * GSC Daily Pipeline Script
  *
  * Run this via n8n (Execute Command node) or as a cron job.
- * It fetches yesterday's GSC data for each property and writes to Supabase,
- * duplicated for each user ID so both accounts see the data under RLS.
+ * Fetches GSC data for each property and writes to Supabase with per-day breakdown.
  *
  * Usage:
  *   SUPABASE_URL=https://xxx.supabase.co \
  *   SUPABASE_SERVICE_KEY=<service-role-key> \
  *   GSC_USER_IDS=uuid1,uuid2 \
+ *   GSC_START_DATE=2025-06-01 \  # optional, defaults to 16 months ago
  *   GOOGLE_CLIENT_ID=xxx \
  *   GOOGLE_CLIENT_SECRET=xxx \
  *   GOOGLE_REFRESH_TOKEN=xxx \
@@ -25,6 +25,11 @@ const SITE_URLS = [
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
 const USER_IDS = (process.env.GSC_USER_IDS || "").split(",").map((s) => s.trim()).filter(Boolean)
+const START_DATE = process.env.GSC_START_DATE || (() => {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 16)
+  return d.toISOString().slice(0, 10)
+})()
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
@@ -85,24 +90,26 @@ async function upsertBatch(rows) {
 async function run() {
   const gsc = getGscClient()
   const endDate = dateStr(daysAgo(1)) // yesterday
-  const startDate = dateStr(daysAgo(3)) // 3-day window for late data
+  const startDate = START_DATE
+
+  console.log(`Date range: ${startDate} → ${endDate}`)
 
   for (const siteUrl of SITE_URLS) {
-    console.log(`\nFetching ${siteUrl} for ${startDate} → ${endDate}`)
+    console.log(`\nFetching ${siteUrl}`)
 
-    // 1. Totals (no dimensions)
-    await fetchAndStore(gsc, siteUrl, startDate, endDate, [], "totals")
+    // Fetch per-day totals with the "date" dimension
+    await fetchAndStore(gsc, siteUrl, startDate, endDate, ["date"], "daily_totals")
 
-    // 2. Queries
+    // Fetch queries for the full range (aggregated)
     await fetchAndStore(gsc, siteUrl, startDate, endDate, ["query"], "query")
 
-    // 3. Pages
+    // Fetch pages
     await fetchAndStore(gsc, siteUrl, startDate, endDate, ["page"], "page")
 
-    // 4. Countries
+    // Fetch countries
     await fetchAndStore(gsc, siteUrl, startDate, endDate, ["country"], "country")
 
-    // 5. Devices
+    // Fetch devices
     await fetchAndStore(gsc, siteUrl, startDate, endDate, ["device"], "device")
   }
 
@@ -117,7 +124,7 @@ async function fetchAndStore(gsc, siteUrl, startDate, endDate, dimensions, dimTy
         startDate,
         endDate,
         dimensions,
-        rowLimit: dimensions.length === 0 ? 1 : 1000,
+        rowLimit: 25000,
       },
     })
 
@@ -127,17 +134,24 @@ async function fetchAndStore(gsc, siteUrl, startDate, endDate, dimensions, dimTy
       return
     }
 
-    // GSC returns one row per date-range aggregate. We store the aggregate
-    // under the end date. For daily breakdown, query per-day separately.
     const records = []
     for (const row of rows) {
-      const dimKey = row.keys ? row.keys.join("|") : ""
-      // Duplicate for each user so RLS lets both accounts see the data.
+      // When using "date" dimension, keys[0] is the date string (YYYY-MM-DD)
+      // When using other dimensions, keys[0] is the dimension value
+      let date = endDate
+      let dimKey = ""
+      if (dimType === "daily_totals") {
+        date = row.keys[0]
+        dimKey = ""
+      } else {
+        dimKey = row.keys[0]
+      }
+
       for (const userId of USER_IDS) {
         records.push({
           user_id: userId,
           site_url: siteUrl,
-          date: endDate,
+          date,
           dimension_type: dimType,
           dimension_key: dimKey,
           clicks: Math.round(row.clicks || 0),
@@ -148,7 +162,10 @@ async function fetchAndStore(gsc, siteUrl, startDate, endDate, dimensions, dimTy
       }
     }
 
-    await upsertBatch(records)
+    // Insert in batches of 1000 to avoid Supabase limits
+    for (let i = 0; i < records.length; i += 1000) {
+      await upsertBatch(records.slice(i, i + 1000))
+    }
     console.log(`  ${dimType}: ${rows.length} GSC rows → ${records.length} DB rows (${USER_IDS.length} users)`)
   } catch (err) {
     console.error(`  ${dimType} error: ${err.message}`)
