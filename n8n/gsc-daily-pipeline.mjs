@@ -2,12 +2,13 @@
  * GSC Daily Pipeline Script
  *
  * Run this via n8n (Execute Command node) or as a cron job.
- * It fetches yesterday's GSC data for each property and writes to Supabase.
+ * It fetches yesterday's GSC data for each property and writes to Supabase,
+ * duplicated for each user ID so both accounts see the data under RLS.
  *
  * Usage:
- *   GSC_PIPELINE_USER_ID=<supabase-user-uuid> \
  *   SUPABASE_URL=https://xxx.supabase.co \
  *   SUPABASE_SERVICE_KEY=<service-role-key> \
+ *   GSC_USER_IDS=uuid1,uuid2 \
  *   GOOGLE_CLIENT_ID=xxx \
  *   GOOGLE_CLIENT_SECRET=xxx \
  *   GOOGLE_REFRESH_TOKEN=xxx \
@@ -23,7 +24,7 @@ const SITE_URLS = [
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
-const USER_ID = process.env.GSC_PIPELINE_USER_ID
+const USER_IDS = (process.env.GSC_USER_IDS || "").split(",").map((s) => s.trim()).filter(Boolean)
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
@@ -33,7 +34,7 @@ const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN
 for (const [name, val] of [
   ["SUPABASE_URL", SUPABASE_URL],
   ["SUPABASE_SERVICE_KEY", SUPABASE_SERVICE_KEY],
-  ["GSC_PIPELINE_USER_ID", USER_ID],
+  ["GSC_USER_IDS", USER_IDS.length > 0 ? "set" : ""],
   ["GOOGLE_CLIENT_ID", CLIENT_ID],
   ["GOOGLE_CLIENT_SECRET", CLIENT_SECRET],
   ["GOOGLE_REFRESH_TOKEN", REFRESH_TOKEN],
@@ -67,10 +68,10 @@ async function upsertBatch(rows) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/gsc_daily_data`, {
     method: "POST",
     headers: {
-      "apikey": SUPABASE_SERVICE_KEY,
-      "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
       "Content-Type": "application/json",
-      "Prefer": "resolution=merge-duplicates",
+      Prefer: "resolution=merge-duplicates",
     },
     body: JSON.stringify(rows),
   })
@@ -83,14 +84,14 @@ async function upsertBatch(rows) {
 // --- Main pipeline ---
 async function run() {
   const gsc = getGscClient()
-  const endDate = dateStr(daysAgo(1))   // yesterday
-  const startDate = dateStr(daysAgo(3))  // 3-day window for late data
+  const endDate = dateStr(daysAgo(1)) // yesterday
+  const startDate = dateStr(daysAgo(3)) // 3-day window for late data
 
   for (const siteUrl of SITE_URLS) {
     console.log(`\nFetching ${siteUrl} for ${startDate} → ${endDate}`)
 
     // 1. Totals (no dimensions)
-    await fetchAndStore(gsc, siteUrl, startDate, endDate, [], "totals", "")
+    await fetchAndStore(gsc, siteUrl, startDate, endDate, [], "totals")
 
     // 2. Queries
     await fetchAndStore(gsc, siteUrl, startDate, endDate, ["query"], "query")
@@ -126,28 +127,29 @@ async function fetchAndStore(gsc, siteUrl, startDate, endDate, dimensions, dimTy
       return
     }
 
-    // GSC returns one row per date-range aggregate. For daily breakdown,
-    // we query per-day by splitting the range.
-    // But for simplicity (and because GSC data has 2-day delay), we store
-    // the aggregate under the end date.
+    // GSC returns one row per date-range aggregate. We store the aggregate
+    // under the end date. For daily breakdown, query per-day separately.
     const records = []
     for (const row of rows) {
       const dimKey = row.keys ? row.keys.join("|") : ""
-      records.push({
-        user_id: USER_ID,
-        site_url: siteUrl,
-        date: endDate,
-        dimension_type: dimType,
-        dimension_key: dimKey,
-        clicks: Math.round(row.clicks || 0),
-        impressions: Math.round(row.impressions || 0),
-        ctr: Number((row.ctr || 0).toFixed(4)),
-        position: Number((row.position || 0).toFixed(2)),
-      })
+      // Duplicate for each user so RLS lets both accounts see the data.
+      for (const userId of USER_IDS) {
+        records.push({
+          user_id: userId,
+          site_url: siteUrl,
+          date: endDate,
+          dimension_type: dimType,
+          dimension_key: dimKey,
+          clicks: Math.round(row.clicks || 0),
+          impressions: Math.round(row.impressions || 0),
+          ctr: Number((row.ctr || 0).toFixed(4)),
+          position: Number((row.position || 0).toFixed(2)),
+        })
+      }
     }
 
     await upsertBatch(records)
-    console.log(`  ${dimType}: ${records.length} rows stored`)
+    console.log(`  ${dimType}: ${rows.length} GSC rows → ${records.length} DB rows (${USER_IDS.length} users)`)
   } catch (err) {
     console.error(`  ${dimType} error: ${err.message}`)
   }

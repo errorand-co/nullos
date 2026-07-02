@@ -55,7 +55,7 @@ Set these environment variables in the Execute Command node (or n8n's global cre
 ```
 SUPABASE_URL=https://uogfcvyvtlmbswjqgbah.supabase.co
 SUPABASE_SERVICE_KEY=<your-service-role-key>
-GSC_PIPELINE_USER_ID=<your-supabase-user-uid>
+GSC_USER_IDS=<comma-separated-supabase-user-uids>
 GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
 GOOGLE_CLIENT_SECRET=<your-google-oauth-client-secret>
 GOOGLE_REFRESH_TOKEN=<your-google-refresh-token>
@@ -83,7 +83,7 @@ Run the script manually first:
 ```bash
 SUPABASE_URL=... \
 SUPABASE_SERVICE_KEY=... \
-GSC_PIPELINE_USER_ID=... \
+GSC_USER_IDS=... \
 GOOGLE_CLIENT_ID=... \
 GOOGLE_CLIENT_SECRET=... \
 GOOGLE_REFRESH_TOKEN=... \
